@@ -58,7 +58,7 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 
 | Dataset | Timeline | Entities |
 |---|---|---|
-| **Fleet** (one, global) | continuous on main; frozen snapshots | Product, Asset, AssetMac, PurchaseOrder, Place, Container, ContainerManifest, StockLine, StockAdjustment, Shipment, InventorySession, InventoryScan |
+| **Fleet** (one, global) | continuous on main; frozen snapshots | Product, Asset, AssetMac, PurchaseOrder, Place, Container, ContainerManifest, StockLine, Shipment, InventorySession, InventoryScan |
 | **Plan** (one main branch per Episode) | forked from any earlier Plan branch; frozen when the Episode closes | Site, Location, Role, Aggregate, VlanGroup, Vlan, Prefix, IpRange, IpAddress, Device, Interface, Link, Asn, Waypoint, Cable, CableOrder |
 
 - The only cross-dataset reference is Plan → Fleet: a Device's fill (an Asset or a StockLine) and a Cable's container once packed. Fleet never points at a Plan, apart from an optional Episode label on a Shipment or InventorySession.
@@ -67,31 +67,55 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 ```mermaid
 erDiagram
   Site ||--o{ Location : has
+  Location |o--o{ Location : parent
   Site ||--o{ Device : hosts
   Location |o--o{ Device : at
-  Location ||--o{ Waypoint : has
+  Site ||--o{ Waypoint : has
+  Location |o--o{ Waypoint : "inside (optional)"
+  Site |o--o{ VlanGroup : scopes
+  Location |o--o{ VlanGroup : scopes
   VlanGroup ||--o{ Vlan : scopes
+  Role |o--o{ Vlan : labels
   Aggregate ||--o{ Prefix : "contains (derived)"
   Role |o--o{ Prefix : labels
   Vlan |o--o{ Prefix : carries
+  Site |o--o{ Prefix : scopes
+  Location |o--o{ Prefix : scopes
+  Prefix ||--o{ IpRange : "contains (derived)"
   Prefix ||--o{ IpAddress : "contains (derived)"
   Device ||--o{ Interface : has
   Interface ||--o{ IpAddress : assigned
+  Device |o--o| IpAddress : "primary ip4 / ip6"
   Link }o--|| Interface : "a / z end"
+  Link |o--|| Prefix : "prefix4 / prefix6"
   Cable }o--o| Interface : "a / z end"
+  Cable }o--o| Location : at
   Cable }o--o| Waypoint : "via"
+  CableOrder ||--o{ CableOrderLine : has
+  CableOrderLine |o--o{ Cable : orders
   Device }o--o| Asn : speaks
   Device }o--o| Asset : "fill (cross-dataset)"
   Device }o--o| StockLine : "fill (cross-dataset)"
+  Cable }o--o| Container : "packed in (cross-dataset)"
   Product ||--o{ Asset : "model of"
+  PurchaseOrder |o--o{ Asset : bought
   Asset ||--o{ AssetMac : has
   Asset ||--o{ Asset : "accessory (+part)"
   Place ||--o{ Container : holds
+  Place |o--o{ Asset : "kept at"
   Container |o--o{ Asset : "packed in"
   Container ||--o{ ContainerManifest : expects
-  Product ||--o{ StockLine : counts
+  ContainerManifest }o--o| Product : "expects"
+  Product |o--o{ StockLine : counts
+  Container |o--o{ StockLine : holds
+  Place |o--o{ StockLine : holds
   Shipment }o--o{ Container : moves
+  Shipment }o--|| Place : "from / to"
+  InventorySession }o--o| Place : at
   InventorySession ||--o{ InventoryScan : records
+  InventoryScan }o--o| Container : in
+  InventoryScan }o--o| Asset : sees
+  InventoryScan }o--o| StockLine : counts
 ```
 
 ## Branches and snapshots
@@ -144,11 +168,27 @@ Every branch has an append-only changelog. It is the sync feed for clients and t
 - **Mutation** (`mut`; journal of client submissions): `id` (client-generated idempotency key), `branch_id`, `actor`, `entity_type`, `entity_id`, `payload` (fields the client set), `base_seq`, `client_time`, `received_at`, `outcome` (`applied` | `partially_superseded` | `rejected`), `applied_seq`, `overwritten` (the values it replaced that someone else had set after `base_seq`).
 - `actor` identifies a human or machine caller: issuer plus subject (a himari user, a GitHub Actions workflow, an AWS IAM role), with a display name.
 
+Every row in the Plan and Fleet diagram also belongs to one Branch (`branch_id`); that is not drawn there.
+
+```mermaid
+erDiagram
+  Episode ||--|| Branch : "plan_branch"
+  Episode }o--|| Branch : "fleet_branch"
+  Branch |o--o{ Branch : "parent (fork)"
+  Branch ||--o{ ChangeSet : logs
+  ChangeSet ||--o{ Change : contains
+  Branch ||--o{ Mutation : receives
+  Mutation |o--o| ChangeSet : "applied as"
+  Episode |o..o{ StockLine : "loan label"
+  Episode |o..o{ Shipment : label
+  Episode |o..o{ InventorySession : label
+```
+
 Rules:
 
 - A write transaction increments `branches.head_seq` and uses the new value as its `seq`. Concurrent writers on one branch conflict on that row, so DSQL's OCC orders commits. Every `seq` then appears in commit order with no gaps, and a client that has applied up to N misses nothing by asking for `> N`. DSQL sequences cannot provide this, because they hand out cached blocks with gaps and out of commit order.
 - Conflicts resolve per field, last writer wins, in server commit order. Overwritten values are recorded on the Mutation that overwrote them. The journal keeps every payload ever submitted, so an operator can restore any of them.
-- Inventory data is insert-only. Scans, shipments and stock adjustments are new rows, never updates, so concurrent scanning cannot lose a record. Derived state (an asset's container, a stock count) is updated in the same transaction.
+- Inventory data is insert-only. Scans and shipments are new rows, never updates, so concurrent scanning cannot lose a record. Derived state (an asset's container, a stock line's last observed count) is updated in the same transaction.
 - Entity tables hold current state plus `updated_seq`. Reading current state never needs the changelog.
 - Client bootstrap: fetch all rows of one Plan branch and its Fleet branch with their `head_seq`, then pull or stream Changes after it. Frozen branches never change, so their bootstrap payloads can be cached on S3/CloudFront. Mobile clients keep only the active pair.
 - Deletes appear as `delete` Changes and remove the row from the entity table.
@@ -165,6 +205,7 @@ Some rules warn instead of rejecting. Warnings are computed per branch and shown
 - address outside every Prefix; Prefix outside every Aggregate
 - device without a primary IP
 - shipment that misses something the Plan needs (see [Shipment](#fleet))
+- disposed or lost container that still holds assets or stock lines
 
 ## Entities: Plan
 
@@ -266,7 +307,9 @@ The spreadsheet is the single source of truth for cable planning and measuring. 
 - The waypoint pair names a 重畳区間 (overlapping section). That row is shared by every cable spanning the same pair of waypoints. A waypoint is a venue location where a JJ (female-female coupler) is placed, so no single cable is too long to deploy or to replace after a fault. `A` is the A-side termination and `Z` the Z-side termination.
 - The parser needs a spike against the full sheet. Ends that do not resolve to a Device stay as text and raise a topology warning.
 
-**Waypoint** (`wpt`): a JJ point at the venue. Fields: `location`, `code` (`TRBFO`, `SPOFI`), `description`.
+**Waypoint** (`wpt`): a JJ point at the venue, usually where cables cross between rooms. Fields: `site`, `location` (nullable), `code` (`TRBFO`, `SPOFI`), `description`.
+- `location` is set when the waypoint sits in a named Location (a track hall, a foyer or lobby that has a code).
+- It stays empty for places with no Location, such as backstage hallways. There, `description` says where it is.
 
 **Cable** (`cable`): one row of the `cables` tab.
 - Sheet-owned:
@@ -317,15 +360,17 @@ Fleet tables carry the same `branch_id`, `lineage`, `updated_seq` and timestamps
 - `kind`: `folding_container` (rkc) | `cardboard` (rkb) | `suitcase` (rks) | `other`
 - `width_cm`, `depth_cm`, `height_cm`, `description` (個品備考)
 - `place` (current)
+- `status`: `active` | `lost` | `disposed`, with `retired_at`
+- A disposed or lost container keeps its row and its tag, so old scans and shipments still resolve and the tag is never reused. It can no longer be packed or added to a Shipment. Disposing a container that still holds assets or stock lines raises a warning.
 
 **ContainerManifest** (`man`): the paper in each box, giving the expected number of items per type. Fields: `container`, `product` or `category`, `expected_quantity`, `note`. Checks compare it with scanned contents.
 
 **StockLine** (`stock`): a counted holding, for untagged items.
 - `product` (or a free-text `item` until a Product exists)
 - `holder`: a container or a place
-- `quantity`, `quantity_note` (rough counts such as "いっぱい", "残り少し")
+- `quantity`, `quantity_note` (rough counts such as "いっぱい", "残り少し"), `observed_at`, `observed_in` (session, nullable)
 - `ownership`, `lender`, `episode` (for a loan to one Episode)
-- **StockAdjustment** (insert-only) records every change: `stock_line`, `delta`, `reason`, `session` (nullable).
+- The quantity is the last observed count, not a balance. Cheap items get used by many staff during an Episode and rarely return to the same box, so they cannot be tracked as moves in and out. A count scan, or a direct edit, replaces the quantity. Past counts remain in the scans and the changelog.
 
 **Shipment** (`ship`): containers moving between Places. The usual route is warehouse → office (prep) → venue → warehouse.
 - `from_place`, `to_place`, `episode` (label), `containers`
@@ -343,7 +388,7 @@ Fleet tables carry the same `branch_id`, `lineage`, `updated_seq` and timestamps
 - Several people scan into one session at once (the old thread-1 / thread-2 columns).
 
 **InventoryScan** (`scan`): insert-only.
-- `session`, `container` (nullable), `asset` or `stock_line` (with `quantity`)
+- `session`, `container` (nullable), `asset` or `stock_line` (with the observed `quantity`)
 - `scanned_by`, `scanned_at`
 - `result`: `present` | `missing` | `unexpected`
 - A scan updates `asset.container` / `asset.place` in the same transaction. The old ある? cross-check becomes a comparison of scans with the ContainerManifest and with the previous session.
@@ -364,11 +409,26 @@ Each export reads one branch at one `seq`, so its output can be reproduced.
   - The PR touches only the files whose content changed.
 - Downloads:
   - WLC commands (`ap name <loc-name> <mac>`, `ap group-name <group> <name>`, reset `ap name <tag> <mac>`)
-  - Tepra labels as CSV or XLSX (XLSX for fibre labels with `\n` in a cell)
-  - asset QR labels
+  - Tepra labels (see [Labels](#labels))
   - cable order forms and JJ orders
   - warehouse shipment requests (入庫申請)
   - `device-sum` style stock report (requested per category vs available, PoE switches in particular)
+
+### Labels
+
+Labels are Tepra print sources, generated from the model rather than kept as sheet tabs. Each kind has a fixed column layout matching a Tepra template, downloaded as CSV or XLSX. XLSX is needed when a cell holds a line break.
+
+| Kind | Source | Columns (from the current tabs) |
+|---|---|---|
+| Device | Devices (`device-tepra`) | ID (`es-tra-01`), SKU, Label (`tra-01`), Label2 (`tra`), Label3 (`01`), Label4 (`es`) |
+| AP | Devices with role `ap` (`ap-tepra`) | same as Device (`ap-lb0-01` → `lb0-01`, `lb0`, `01`, `ap`) |
+| Cable (copper) | Cables (`cables-tepra`) | prefix (`E:`), descr (`ngn1@noc/xs1`), length (`2m`), flag (`E:ngn1@noc/xs1\n(2m)`), charlen, type (`2m より線 細径(青)`) |
+| Cable (fibre) | Cables with medium OM3 (`cables-tepra-mmf`) | flag only, with waypoint pair (`C:cs@noc/fh1E\nSPOFI-SPOFO (2m)`); XLSX |
+| Asset QR | Assets (asset sheet `tepra`) | handle (tag), url (`https://nwa.rubykaigi.org/<tag>`), handle2 |
+
+- Label parts come from parsing natural keys: device name into location, number and role, and cable ID into kind, ends and waypoints. No label text is stored.
+- The cable `charlen` column becomes a warning when a label is too long for its tape width.
+- Any export can be filtered to a selection, e.g. only cables not yet `labelled`, or only APs at one Location.
 
 ## Storage notes (DSQL)
 
