@@ -6,10 +6,10 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 
 ## Requirements
 
-- An occurrence is an **Edition** (`rk25`, `rk25kor`, `rk26`, `rk26kor`), never a "conference". "Edition" is a working name; naming gets revisited later.
-- Assets and inventory (the **Fleet**) have their own timeline, independent of Editions. Everything else, backbone and venue alike, belongs to an Edition's **Plan**, because the backbone changes during an Edition too.
-- An Edition's Plan can fork from any earlier Edition, not only the latest: `rk26kor` forks from `rk26`, and `rk27` forks from `rk26`, not from `rk26kor`. Closed Editions stay readable for reference. The Fleet only needs snapshots.
-- Each Edition records which Fleet version it was built with.
+- An occurrence is an **Episode** (`rk25`, `rk25kor`, `rk26`, `rk26kor`), never a "conference".
+- Assets and inventory (the **Fleet**) have their own timeline, independent of Episodes. Everything else, backbone and venue alike, belongs to an Episode's **Plan**, because the backbone changes during an Episode too.
+- An Episode's Plan can fork from any earlier Episode, not only the latest: `rk26kor` forks from `rk26`, and `rk27` forks from `rk26`, not from `rk26kor`. Closed Episodes stay readable for reference. The Fleet only needs snapshots.
+- Each Episode records which Fleet version it was built with.
 - Every write lands in a **streamlined changelog** for local-first clients. Conflicts resolve last-writer-wins in server commit order, and no submitted update is ever lost. Inventory tracking data in particular must never be lost.
 - A client, mobile included, loads one Plan branch plus its linked Fleet branch in full. It never needs all branches at once.
 - Generated files reach rubykaigi-net as one pull request per export, opened with a GitHub token from sts-cat. Agents may also read and write through the API.
@@ -17,7 +17,7 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 - API callers authenticate with himari-issued tokens or with OIDC ID tokens from GitHub Actions and AWS IAM (`sts:GetWebIdentityToken`). Roles are assigned in himari.
 - IPAM follows NetBox conventions, which the team already knows.
 - `nwa.rubykaigi.org/<tag>` (the QR target on asset labels) opens the asset in this app.
-- Cables stay planned in the spreadsheet, which remains their single source of truth. The app imports them repeatedly and handles ordering, receipt, preparing and sending. Cables are consumed per Edition.
+- Cables stay planned in the spreadsheet, which remains their single source of truth. The app imports them repeatedly and handles ordering, receipt, preparing and sending. Cables are consumed per Episode.
 - Out of scope: cost tracking (stays in a spreadsheet). Deferred: AP RF configuration, whose single source of truth is the WLC; mirroring it may come later.
 
 ## Sources surveyed
@@ -52,17 +52,17 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 - `gen-hosts.rb` reads `hosts.txt` (`dc network cidr ip name iface mac`). It emits `<name>.<dc>.rubykaigi.net` A/PTR for the first row per `[dc, name, family]`, `<iface>.<fqdn>` for every row, and `<network>.<fqdn>` CNAMEs. It also writes `deadman.conf`.
 - Kea reservations keyed by MAC, DUID or client-id `\0<asset tag>` (`reservations_asset_tag.libsonnet`). Pools and options stay in the repo.
 - `route53/rubykaigi.net.route`: `es-<area>-NN.venue` → `<asset tag>.venue` CNAMEs. Other hand-kept records stay in the repo.
-- glazed, SNMP and trapbridge host lists by platform; the per-Edition cloudprober exclusion list; itamae node attributes (addresses, DUIDs, ASNs).
+- glazed, SNMP and trapbridge host lists by platform; the per-Episode cloudprober exclusion list; itamae node attributes (addresses, DUIDs, ASNs).
 
 ## Datasets
 
 | Dataset | Timeline | Entities |
 |---|---|---|
 | **Fleet** (one, global) | continuous on main; frozen snapshots | Product, Asset, AssetMac, PurchaseOrder, Place, Container, ContainerManifest, StockLine, StockAdjustment, Shipment, InventorySession, InventoryScan |
-| **Plan** (one main branch per Edition) | forked from any earlier Plan branch; frozen when the Edition closes | Site, Location, Role, Rir, Aggregate, VlanGroup, Vlan, Prefix, IpRange, IpAddress, Device, Interface, Link, Asn, Waypoint, Cable, CableOrder |
+| **Plan** (one main branch per Episode) | forked from any earlier Plan branch; frozen when the Episode closes | Site, Location, Role, Aggregate, VlanGroup, Vlan, Prefix, IpRange, IpAddress, Device, Interface, Link, Asn, Waypoint, Cable, CableOrder |
 
-- The only cross-dataset reference is Plan → Fleet: a Device's fill (an Asset or a StockLine) and a Cable's container once packed. Fleet never points at a Plan, apart from an optional Edition label on a Shipment or InventorySession.
-- Each Plan branch belongs to one Edition, so per-Edition facts live directly on Plan rows. `es-tra-01`'s location, asset and deployed state are columns of its Device row in `rk26kor`. Forking `rk27` from `rk26` copies the Devices, and the fills are then edited.
+- The only cross-dataset reference is Plan → Fleet: a Device's fill (an Asset or a StockLine) and a Cable's container once packed. Fleet never points at a Plan, apart from an optional Episode label on a Shipment or InventorySession.
+- Each Plan branch belongs to one Episode, so per-Episode facts live directly on Plan rows. `es-tra-01`'s location, asset and deployed state are columns of its Device row in `rk26kor`. Forking `rk27` from `rk26` copies the Devices, and the fills are then edited.
 
 ```mermaid
 erDiagram
@@ -98,22 +98,22 @@ erDiagram
 
 ### Concepts
 
-- **Edition** (`edn`): `slug` (unique: `rk26`, `rk26kor`), `name`, `organizer` (rk/kor), `starts_on`, `ends_on`, `venue_name`, `status` (`planning` | `setup` | `live` | `teardown` | `closed`).
-  - `plan_branch`: the Edition's main Plan branch.
-  - `fleet_branch`: the Fleet branch that fills resolve against. This is Fleet main while the Edition is open, and the Fleet snapshot taken at close.
+- **Episode** (`ep`): `slug` (unique: `rk26`, `rk26kor`), `name`, `organizer` (rk/kor), `starts_on`, `ends_on`, `venue_name`, `status` (`planning` | `setup` | `live` | `teardown` | `closed`).
+  - `plan_branch`: the Episode's main Plan branch.
+  - `fleet_branch`: the Fleet branch that fills resolve against. This is Fleet main while the Episode is open, and the Fleet snapshot taken at close.
   - The slug doubles as the `#rk26` interface-description tag.
 - **Branch** (`br`): one line of history of one dataset.
-  - `dataset` (`fleet` | `plan`), `edition` (Plan branches only), `name` (`main`, or a snapshot label)
+  - `dataset` (`fleet` | `plan`), `episode` (Plan branches only), `name` (`main`, or a snapshot label)
   - `parent`, `forked_at_seq` (null for a root)
   - `head_seq` (see [Changelog](#changelog)), `frozen`, `state` (`preparing` | `ready`)
 - **Snapshot**: a frozen branch. It keeps its own rows, so reading it never replays history.
 
 Operations:
 
-- **Fork an Edition**: create a Plan branch from any Plan branch at its head, typically a closed Edition's frozen main. The fork graph is the `parent` chain: `rk26 → rk26kor`, `rk26 → rk27`.
-- **Close an Edition**: freeze its Plan branch, snapshot Fleet main, and point `fleet_branch` at the snapshot.
+- **Fork an Episode**: create a Plan branch from any Plan branch at its head, typically a closed Episode's frozen main. The fork graph is the `parent` chain: `rk26 → rk26kor`, `rk26 → rk27`.
+- **Close an Episode**: freeze its Plan branch, snapshot Fleet main, and point `fleet_branch` at the snapshot.
 - **Fleet snapshot** at any other moment, e.g. after an audit. Fleet main is the only writable Fleet branch.
-- **Import a past Edition** (rk25, rk26 …) from its sheet into a frozen Plan branch. Pair it with a Fleet snapshot rebuilt from that year's `containers20xx` tab where one exists.
+- **Import a past Episode** (rk25, rk26 …) from its sheet into a frozen Plan branch. Pair it with a Fleet snapshot rebuilt from that year's `containers20xx` tab where one exists.
 - **Merge** is not planned. Cherry-picking single entities across branches works through lineage.
 
 ### Eager copies
@@ -125,23 +125,23 @@ Forks and snapshots copy rows eagerly. The data is small (about 460 addresses, a
 - Every branched table has a UUID primary key `id` (a TypeID in the API), unique per row and per branch, plus `branch_id` and `lineage`.
 - `lineage` stays the same when a row is copied into a fork, and is unique per branch.
 - References inside a branch are ordinary foreign keys on `id`. A fork rewrites them through a lineage map while copying. Single-column keys keep Rails and `typeid_rails` simple.
-- Cross-dataset references (Device → Asset) store the target's `lineage` and resolve within the Edition's `fleet_branch`.
+- Cross-dataset references (Device → Asset) store the target's `lineage` and resolve within the Episode's `fleet_branch`.
 - Branch diffs, "this device in rk25", and cherry-picks join on `lineage`. The API exposes it.
 - `lineage` is the `id` of the row's first incarnation: a UUID, exposed as a TypeID with the entity's prefix. Clients generate it together with `id` when they create a row. That matters offline: a scanner at the venue can register a new asset and assign it to a Device before syncing, and the cross-dataset reference needs the asset's lineage at once. A server-assigned number would not exist yet.
 - Neither `id` nor `lineage` is meant for people. People refer to natural keys:
   - asset and container tags
-  - Edition slug + device FQDN (`rk26kor` / `es-tra-01.venue`)
+  - Episode slug + device FQDN (`rk26kor` / `es-tra-01.venue`)
   - cable IDs
   - prefixes and addresses
-- UI URLs use natural keys where they are stable (`nwa.rubykaigi.org/<tag>`, `/<edition>/devices/<site>/<name>`). They fall back to TypeIDs for rows without one.
+- UI URLs use natural keys where they are stable (`nwa.rubykaigi.org/<tag>`, `/<episode>/devices/<site>/<name>`). They fall back to TypeIDs for rows without one.
 
 ## Changelog
 
 Every branch has an append-only changelog. It is the sync feed for clients and the audit history.
 
-- **ChangeSet** (one per committed transaction): `branch_id`, `seq`, `actor`, `mutation_id`, `committed_at`.
-- **Change** (one per touched row): `branch_id`, `seq`, `entity_type`, `entity_id`, `op` (`upsert` | `delete`), `data` (full after-image, jsonb; null on delete).
-- **Mutation** (journal of client submissions): `id` (client-generated idempotency key), `branch_id`, `actor`, `entity_type`, `entity_id`, `payload` (fields the client set), `base_seq`, `client_time`, `received_at`, `outcome` (`applied` | `partially_superseded` | `rejected`), `applied_seq`, `overwritten` (the values it replaced that someone else had set after `base_seq`).
+- **ChangeSet** (`cs`; one per committed transaction): `branch_id`, `seq`, `actor`, `mutation_id`, `committed_at`.
+- **Change** (`c`; one per touched row): `branch_id`, `seq`, `entity_type`, `entity_id`, `op` (`upsert` | `delete`), `data` (full after-image, jsonb; null on delete).
+- **Mutation** (`mut`; journal of client submissions): `id` (client-generated idempotency key), `branch_id`, `actor`, `entity_type`, `entity_id`, `payload` (fields the client set), `base_seq`, `client_time`, `received_at`, `outcome` (`applied` | `partially_superseded` | `rejected`), `applied_seq`, `overwritten` (the values it replaced that someone else had set after `base_seq`).
 - `actor` identifies a human or machine caller: issuer plus subject (a himari user, a GitHub Actions workflow, an AWS IAM role), with a display name.
 
 Rules:
@@ -197,11 +197,11 @@ The hosts export carries role, VLAN and scope as separate fields, so its consume
 | `onpremises`, `kaigi` | none | none | `container` prefixes |
 | `pa` | public | none | under Aggregate `192.50.220.152/29` etc. |
 
-**Rir** (`rir`) and **Aggregate** (`agg`): the top-level blocks we hold or use. Examples: `10.33.0.0/16` (RFC 1918), `2001:df0:8500::/48` (APNIC), `192.50.220.152/29` (PA from transit), `10.33.128.0/18` (AWS).
+**Aggregate** (`agg`): a top-level block we hold or use, with a free-text `source`. Examples: `10.33.0.0/16` (RFC 1918), `2001:df0:8500::/48` (APNIC), `192.50.220.152/29` (PA from transit), `10.33.128.0/18` (AWS).
 
 **Role** (`role`): a function vocabulary shared by prefixes and VLANs. Values: `loopback`, `p2p`, `mgmt`, `life`, `air`, `usr`, `cast`, `public`, `cloud`, `nat64-outer`, …
 
-**VlanGroup** (`vgrp`): a scope where VLAN ids are unique. Fields: `name`, scope (`site` or `location`).
+**VlanGroup** (`vlg`): a scope where VLAN ids are unique. Fields: `name`, scope (`site` or `location`).
 
 **Vlan** (`vlan`): `group`, `vid`, `name`, `role`.
 
@@ -214,7 +214,7 @@ The hosts export carries role, VLAN and scope as separate fields, so its consume
 - `dhcp_subnet_id` (Kea id, reference only), `description`
 - Parents and children come from containment, as in NetBox. Carrier NGN prefixes are `active` prefixes with a note.
 
-**IpRange** (`rng`): `start`, `end`, `role` (`dhcp_pool`, …), `description`. Informational only, since Kea pools stay in the repo.
+**IpRange** (`iprange`): `start`, `end`, `role` (`dhcp_pool`, …), `description`. Informational only, since Kea pools stay in the repo.
 
 **IpAddress** (`ip`):
 - `address` (with prefix length, as NetBox stores it), `family`
@@ -226,12 +226,12 @@ The hosts export carries role, VLAN and scope as separate fields, so its consume
 - `configured_at`, `verified_at`, `remark`; these replace the sheet's `update` and `configured?` columns (`updated_at` is automatic)
 - The containing prefix is derived, replacing the free-text CIDR column.
 
-**Link** (`lnk`): a first-class point-to-point link built on the address model.
+**Link** (`link`): a first-class point-to-point link built on the address model.
 - `a_interface`, `z_interface`, `prefix4` (a /31 with role `p2p`), `prefix6` (the matching `ca22:<N>::/124`), `description`
 - Creating a Link allocates the next free /31 and /124 and creates the four IpAddresses: the even v4 address and `::a` go to the A end, the odd address and `::b` to the Z end.
 - Addresses stay directly editable. The topology check warns when a Link and its addresses disagree.
 
-**Asn** (`asn`): `number`, `name` (`er.venue`), `rir`. Devices link to their ASN.
+**Asn** (`asn`): `number`, `name` (`er.venue`). Devices link to their ASN.
 
 ### Devices
 
@@ -253,7 +253,7 @@ The hosts export carries role, VLAN and scope as separate fields, so its consume
 
 ### Cables
 
-The spreadsheet is the single source of truth for cable planning and measuring. The app imports it repeatedly: sheet-owned fields are overwritten on every import, and app-owned fields (order, receipt, prepare, ship state) are kept, matched by cable ID. Cables are consumed per Edition, so all cable data lives in the Plan.
+The spreadsheet is the single source of truth for cable planning and measuring. The app imports it repeatedly: sheet-owned fields are overwritten on every import, and app-owned fields (order, receipt, prepare, ship state) are kept, matched by cable ID. Cables are consumed per Episode, so all cable data lives in the Plan.
 
 **Cable ID grammar**: `<kind>:<a>@<a-location>/<z>[~a|~b] [<WAYPOINT_A>-<WAYPOINT_Z>]`, e.g. `E:ngn1@noc/xs1`, `C:as@are/trbE~a TRBFO-TRBFI`.
 - `kind`: `E` External, `B` Backbone, `C` Core, `A` Access.
@@ -268,7 +268,7 @@ The spreadsheet is the single source of truth for cable planning and measuring. 
 
 **Waypoint** (`wpt`): a JJ point at the venue. Fields: `location`, `code` (`TRBFO`, `SPOFI`), `description`.
 
-**Cable** (`cbl`): one row of the `cables` tab.
+**Cable** (`cable`): one row of the `cables` tab.
 - Sheet-owned:
   - `cable_id` (unique per branch), parsed into `kind`, `a_end`, `location`, `z_end`, `pair_member`
   - `waypoint_a`, `waypoint_z`
@@ -280,7 +280,7 @@ The spreadsheet is the single source of truth for cable planning and measuring. 
   - `order_line`, `unboxed`, `labelled`
   - `container_lineage` (Fleet container, once packed)
 
-**CableOrder** (`cord`) and **CableOrderLine** (`cordl`): an order to a vendor, grouping cables by medium, colour and length. Fields: `vendor`, `ordered_at`, `status`; per line, `quantity` and `received_quantity` (納品チェック). Exports cover order forms (`cables-order`, rasterised), JJ orders (`jj-order`) and labels.
+**CableOrder** (`cableo`) and **CableOrderLine** (`cableol`): an order to a vendor, grouping cables by medium, colour and length. Fields: `vendor`, `ordered_at`, `status`; per line, `quantity` and `received_quantity` (納品チェック). Exports cover order forms (`cables-order`, rasterised), JJ orders (`jj-order`) and labels.
 
 ## Entities: Fleet
 
@@ -293,7 +293,7 @@ Fleet tables carry the same `branch_id`, `lineage`, `updated_seq` and timestamps
 - `tag_kinds` (expected kinds such as `aph`, for the tag/product warning)
 - `platform` (default for devices)
 
-**Asset** (`ast`): one tagged item. Its tag is its identity for life.
+**Asset** (`a`): one tagged item. Its tag is its identity for life.
 - `tag` (`rk-srnp19a1`), parsed into `owner`, `kind`, `year`, `batch`, `number`, `part`
 - `parent` (accessories such as `+psu`)
 - `product`, `serial`
@@ -310,7 +310,7 @@ Fleet tables carry the same `branch_id`, `lineage`, `updated_seq` and timestamps
 
 **PurchaseOrder** (`po`): `handle` (`rk-po19a`), `purchased_on`, `vendor`, `owner`, `note`.
 
-**Place** (`plc`): somewhere things are kept or sent. Fields: `name`, `kind` (`warehouse` | `office` | `venue` | `home` | `other`), `address`, `note`. Initial places: Stockmamoru (warehouse), ivry office (prep), sorah's home.
+**Place** (`place`): somewhere things are kept or sent. Fields: `name`, `kind` (`warehouse` | `office` | `venue` | `home` | `other`), `address`, `note`. Initial places: Stockmamoru (warehouse), ivry office (prep), sorah's home.
 
 **Container** (`box`): a container that travels. Containers do not nest.
 - `tag` (`rkc-21b`, `rkb-25c`, `rks-…`, `kor-…`)
@@ -320,26 +320,26 @@ Fleet tables carry the same `branch_id`, `lineage`, `updated_seq` and timestamps
 
 **ContainerManifest** (`man`): the paper in each box, giving the expected number of items per type. Fields: `container`, `product` or `category`, `expected_quantity`, `note`. Checks compare it with scanned contents.
 
-**StockLine** (`stk`): a counted holding, for untagged items.
+**StockLine** (`stock`): a counted holding, for untagged items.
 - `product` (or a free-text `item` until a Product exists)
 - `holder`: a container or a place
 - `quantity`, `quantity_note` (rough counts such as "いっぱい", "残り少し")
-- `ownership`, `lender`, `edition` (for a loan to one Edition)
+- `ownership`, `lender`, `episode` (for a loan to one Episode)
 - **StockAdjustment** (insert-only) records every change: `stock_line`, `delta`, `reason`, `session` (nullable).
 
-**Shipment** (`shp`): containers moving between Places. The usual route is warehouse → office (prep) → venue → warehouse.
-- `from_place`, `to_place`, `edition` (label), `containers`
+**Shipment** (`ship`): containers moving between Places. The usual route is warehouse → office (prep) → venue → warehouse.
+- `from_place`, `to_place`, `episode` (label), `containers`
 - `requested_at`, `shipped_at`, `received_at`, `status`
 - An outbound shipment from the warehouse requests a subset of containers (`とりだす`). Kaigi on Rails takes fewer than RubyKaigi.
-- Validation against the Edition's Plan uses Device fills only:
+- Validation against the Episode's Plan uses Device fills only:
   - every asset filling a `planned` Device must be in a requested container, or already at the destination
   - per product and category, the number of devices in the requested containers must cover the Plan's untagged fills and `required_category` counts
 - Anything missing is a warning. ContainerManifests are for box checks, not shipment validation.
 - The warehouse request form (入庫申請 and its outbound counterpart) is an export.
 
-**InventorySession** (`invs`): one counting run.
+**InventorySession** (`inv`): one counting run.
 - `kind`: `pack` (prep at the office) | `check` (at the venue, before shipping back) | `receive` | `audit`
-- `place`, `edition` (label), `started_at`, `closed_at`, `note`
+- `place`, `episode` (label), `started_at`, `closed_at`, `note`
 - Several people scan into one session at once (the old thread-1 / thread-2 columns).
 
 **InventoryScan** (`scan`): insert-only.
@@ -379,4 +379,4 @@ Each export reads one branch at one `seq`, so its output can be reproduced.
 
 ## Open questions
 
-None outstanding from rounds 1–4. Left for later: naming of "Edition", and spikes on the lineage scheme in Rails, the cable ID parser, and the client sync protocol.
+None outstanding from rounds 1–4. Left for later: spikes on the lineage scheme in Rails, the cable ID parser, and the client sync protocol.
