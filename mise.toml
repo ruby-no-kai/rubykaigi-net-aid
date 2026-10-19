@@ -5,9 +5,30 @@ buf = "1.73.0"
 # release emits different code.
 "aqua:protocolbuffers/protobuf/protoc" = "36.2"
 
+[env]
+# sorbet-static ships only precompiled platform gems, which a `ruby` lockfile
+# platform cannot resolve.
+BUNDLE_FORCE_RUBY_PLATFORM = "false"
+
+[tasks.typecheck]
+description = "Sorbet type check backend/"
+dir = "{{config_root}}/backend"
+run = "bundle exec srb tc"
+
+# Regenerating every gem RBI takes minutes and `tapioca dsl` boots Rails, so
+# this runs on demand after a Gemfile.lock or model change.
+[tasks.tapioca]
+description = "Regenerate Sorbet RBI files under third_party/"
+dir = "{{config_root}}/backend"
+run = [
+  "bundle exec tapioca gem --all",
+  "bundle exec tapioca annotations",
+  "bundle exec tapioca dsl",
+]
+
 [tasks.gen]
 description = "Run every generator whose output is checked into git"
-depends = ["gen:proto"]
+depends = ["gen:proto", "gen:rbi"]
 
 [tasks."gen:proto"]
 description = "Generate Ruby and RBS into backend/gen/proto/ruby"
@@ -22,6 +43,19 @@ buf build
 find backend/gen/proto/ruby \( -path 'backend/gen/proto/ruby/lib/*_pb.rb' -o -path 'backend/gen/proto/ruby/sig/*_pb.rbs' \) -delete
 buf generate
 '''
+
+# `--only` skips tapioca's stale RBI removal, so the message RBIs are rebuilt
+# from scratch.
+[tasks."gen:rbi"]
+description = "Regenerate Sorbet RBIs for the generated protobuf messages (boots Rails)"
+depends = ["gen:proto"]
+dir = "{{config_root}}/backend"
+sources = ["gen/proto/ruby/lib/**/*.rb", "Gemfile.lock"]
+outputs = { auto = true }
+run = [
+  "rm -rf ../third_party/sorbet/rbi/dsl/rk/net_aid",
+  "bundle exec tapioca dsl --only=Protobuf",
+]
 
 # proto/protobufable is copied byte-for-byte from the protobufable gem, so it keeps the gem's formatting.
 [tasks."lint:proto"]

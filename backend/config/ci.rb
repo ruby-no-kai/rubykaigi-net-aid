@@ -1,3 +1,7 @@
+# typed: ignore
+
+# Evaluated by ActiveSupport::ContinuousIntegration from bin/ci.
+
 # Run using bin/ci
 
 CI.run do

@@ -1,18 +1,16 @@
+# typed: strict
 # frozen_string_literal: true
 
 require_relative "../../lib/dsql"
 
 # Mints DSQL IAM auth tokens for pg-aws_rds_iam (`aws_rds_iam_auth_token_generator=dsql` in DATABASE_URL).
 class DsqlAuthTokenGenerator
+  #: (host: String, port: Integer, user: String) -> String
   def call(host:, port:, user:)
-    # A token signed at travelled time fails with "Signature not yet current"; TimeHelpers cannot be suspended, Timecop can.
-    if defined?(Timecop)
-      Timecop.return { generate_token(host:, user:) }
-    else
-      generate_token(host:, user:)
-    end
+    generate_token(host:, user:)
   end
 
+  #: (host: String, user: String) -> String
   private def generate_token(host:, user:)
     token_generator = Aws::DSQL::AuthTokenGenerator.new(
       credentials: Aws::CredentialProviderChain.new.resolve,

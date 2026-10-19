@@ -1,0 +1,13 @@
+# typed: true
+# frozen_string_literal: true
+
+# Entrypoints the app reaches for but `Bundler.require` does not load, either
+# because the Gemfile marks them `require: false`, because the gem lazy-loads
+# the constant, or because the entrypoint is an optional integration the gem
+# never requires itself.
+
+require "connect_rpc_rails/protovalidate"
+require "protobufable/alba_binding"
+require "protobufable/column_validatable"
+require "protobufable/connect"
+require "protobufable/protovalidate"

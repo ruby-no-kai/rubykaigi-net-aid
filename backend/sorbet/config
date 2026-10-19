@@ -1,0 +1,15 @@
+--dir
+.
+--dir
+../third_party/sorbet/rbi
+--ignore=/tmp/
+--ignore=/log/
+--ignore=/storage/
+--ignore=/vendor/
+--ignore=/public/
+--ignore=/gen/
+# RuboCop cops run inside RuboCop, whose RBIs are excluded.
+--ignore=/rubocop/
+--parser=prism
+--enable-experimental-rbs-comments
+--enable-experimental-requires-ancestor

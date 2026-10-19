@@ -1,0 +1,28 @@
+gem:
+  outdir: "../third_party/sorbet/rbi/gems"
+  dsl_dir: "../third_party/sorbet/rbi/dsl"
+  # Gem YARD docs are not needed for type checking.
+  doc: false
+  # Tooling gems the app never calls; their RBIs are large.
+  exclude:
+    - prism
+    - rbi
+    - rbs
+    - rdoc
+    - rubocop
+    - rubocop-ast
+    - rubocop-performance
+    - rubocop-rails
+    - rubocop-rails-omakase
+    - spoom
+    - tapioca
+    - brakeman
+dsl:
+  outdir: "../third_party/sorbet/rbi/dsl"
+annotations:
+  # The upstream activesupport annotations declare String#as_json and
+  # Array#to_xml with no arguments, contradicting the gem RBIs (Sorbet 4010).
+  typed_overrides:
+    activesupport: "false"
+    # ActionMailer is not loaded (config/application.rb), so its annotations reference missing constants.
+    actionmailer: "ignore"

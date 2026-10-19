@@ -18,3 +18,7 @@ Dsql/TransactionOccAwareness:
 AllCops:
   Exclude:
     - gen/**/*
+
+# Inline RBS signatures for Sorbet (`#:`, `#|`).
+Layout/LeadingCommentSpace:
+  AllowRBSInlineAnnotation: true

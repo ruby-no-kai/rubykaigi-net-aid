@@ -1,3 +1,5 @@
+# typed: strict
+
 require "protobufable/column_validatable"
 
 class ApplicationRecord < ActiveRecord::Base
