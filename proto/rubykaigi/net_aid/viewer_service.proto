@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package rubykaigi.net_aid;
+
+import "rubykaigi/net_aid/viewer.proto";
+
+option ruby_package = "Rk::NetAid";
+
+// Tells a client who it is calling as.
+service ViewerService {
+  // Returns the party the request is made as.
+  rpc GetViewer(ViewerServiceGetViewerRequest) returns (ViewerServiceGetViewerResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ViewerServiceGetViewerRequest {}
+
+message ViewerServiceGetViewerResponse {
+  Viewer viewer = 1;
+}

@@ -9,6 +9,16 @@ gem "aws-sdk-dsql"
 gem "pg-aws_rds_iam"
 # TypeID rendering of uuid primary keys
 gem "typeid_rails"
+
+# Connect RPC with protobuf messages generated from ../proto
+gem "google-protobuf", "~> 4.36"
+gem "net_aid-proto", path: "gen/proto/ruby"
+gem "connect_rpc_rails", "~> 0.2"
+gem "protobufable", "~> 0.1"
+gem "protovalidate", "~> 0.1"
+gem "problem", "~> 0.1"
+gem "googleapis-common-protos-types", require: "google/rpc/error_details_pb"
+gem "alba"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 

@@ -14,3 +14,7 @@ Dsql/TransactionOccAwareness:
   Enabled: true
   Exclude:
     - app/models/concerns/dsql_transactionable.rb
+
+AllCops:
+  Exclude:
+    - gen/**/*

@@ -44,6 +44,7 @@ RUN --mount=type=tmpfs,target=/tmp/psqldef \
 # Install application gems
 COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
+COPY gen/proto/ruby/net_aid-proto.gemspec ./gen/proto/ruby/
 
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git

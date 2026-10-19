@@ -1,0 +1,3 @@
+/backend/gen/** linguist-generated=true
+/backend/gen/proto/ruby/*.gemspec linguist-generated=false
+/backend/gen/proto/ruby/lib/net_aid-proto.rb linguist-generated=false

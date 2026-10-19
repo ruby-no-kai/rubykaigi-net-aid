@@ -1,0 +1,13 @@
+version: v2
+# backend/gen/proto/ruby also holds hand-written files, so `clean: true` must stay off.
+plugins:
+  - protoc_builtin: ruby
+    out: backend/gen/proto/ruby/lib
+  # Needs protoc 34 or later.
+  - protoc_builtin: rbs
+    out: backend/gen/proto/ruby/sig
+inputs:
+  - directory: proto
+    # The protobufable gem ships the Ruby for its protos, and loading a second copy raises.
+    exclude_paths:
+      - proto/protobufable

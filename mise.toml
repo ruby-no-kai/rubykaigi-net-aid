@@ -1,2 +1,32 @@
 [tools]
 "aqua:sqldef/sqldef/psqldef" = "3.11.23"
+buf = "1.73.0"
+# The protobuf release that google-protobuf in backend/Gemfile.lock is built from. Another
+# release emits different code.
+"aqua:protocolbuffers/protobuf/protoc" = "36.2"
+
+[tasks.gen]
+description = "Run every generator whose output is checked into git"
+depends = ["gen:proto"]
+
+[tasks."gen:proto"]
+description = "Generate Ruby and RBS into backend/gen/proto/ruby"
+sources = ["proto/**/*.proto", "buf.gen.yaml", "buf.yaml", "buf.lock"]
+outputs = { auto = true }
+run = '''
+set -eu
+
+# A .proto that fails to compile must leave gen/ untouched.
+buf build
+
+find backend/gen/proto/ruby \( -path 'backend/gen/proto/ruby/lib/*_pb.rb' -o -path 'backend/gen/proto/ruby/sig/*_pb.rbs' \) -delete
+buf generate
+'''
+
+# proto/protobufable is copied byte-for-byte from the protobufable gem, so it keeps the gem's formatting.
+[tasks."lint:proto"]
+description = "Lint proto/ and check its formatting"
+run = [
+  "buf lint",
+  "buf format --diff --exit-code --exclude-path proto/protobufable",
+]

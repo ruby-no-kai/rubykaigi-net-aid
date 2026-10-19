@@ -1,0 +1,19 @@
+version: v2
+modules:
+  - path: proto
+deps:
+  # The release whose rules the protovalidate gem bundles (Protovalidate::PROTOVALIDATE_VERSION).
+  - buf.build/bufbuild/protovalidate:v1.2.2
+lint:
+  use:
+    - STANDARD
+  except:
+    # STANDARD wants a versioned package such as rubykaigi.net_aid.v1.
+    # The API and its clients ship together from this repository, so the package stays unversioned.
+    - PACKAGE_VERSION_SUFFIX
+  ignore:
+    # Vendored byte-for-byte from the protobufable gem.
+    - proto/protobufable
+breaking:
+  use:
+    - FILE

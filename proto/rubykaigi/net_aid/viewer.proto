@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package rubykaigi.net_aid;
+
+option ruby_package = "Rk::NetAid";
+
+// The party calling the API.
+message Viewer {
+  // Whether the request carries a signed-in session.
+  bool signed_in = 1;
+}
