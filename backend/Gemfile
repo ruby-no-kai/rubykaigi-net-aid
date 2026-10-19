@@ -7,6 +7,8 @@ gem "pg", "~> 1.1"
 # Aurora DSQL IAM authentication
 gem "aws-sdk-dsql"
 gem "pg-aws_rds_iam"
+# TypeID rendering of uuid primary keys
+gem "typeid_rails"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 

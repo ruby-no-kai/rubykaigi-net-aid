@@ -43,6 +43,19 @@ grant all privileges on widgets to app_admin;
 grant select, insert, update, delete on widgets to app_user;
 ```
 
+### Identifiers
+
+Primary keys are `uuid` columns defaulting to `gen_random_uuid()`. Models expose them as [TypeIDs](https://github.com/sorah/typeid_rails) (`widget_0wp9c9wd1d90msb3z67p5eb0v5`) while the column stays a plain UUID:
+
+```ruby
+class Widget < ApplicationRecord
+  include TypeidRails::Identifiable
+  id_prefix "widget"
+end
+```
+
+`ApplicationRecord` includes `TypeidRails::AssociationSupport`, so `belongs_to` foreign keys read and write TypeIDs of the target model. An identifier with the wrong prefix matches no row. Raw UUIDs are still accepted on assignment.
+
 ### Writing schema for DSQL
 
 Write plain PostgreSQL that DSQL also accepts.
