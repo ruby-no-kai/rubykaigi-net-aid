@@ -1,0 +1,20 @@
+name: netaid
+services:
+  db:
+    image: mirror.gcr.io/postgres:16-trixie
+    restart: always
+    environment:
+      POSTGRES_USER: netaid
+      POSTGRES_PASSWORD: netaid
+      POSTGRES_DB: netaid_development
+    volumes:
+      - 'postgres16:/var/lib/postgresql/data'
+    ports:
+      - '127.0.0.1::5432'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  postgres16: {}

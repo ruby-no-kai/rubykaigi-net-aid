@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs psql (or any libpq tool after `--`) against DSQL with a freshly minted IAM auth token.
+#
+#   script/pdsql                          # psql as admin to PGHOST, or to the host in DATABASE_URL
+#   script/pdsql -h <id>.dsql.<region>.on.aws -U app_netaid -- psql -c '\dt'
+#   script/pdsql -h <id>.dsql.<region>.on.aws -- psqldef --dry-run ... postgres
+#
+# Options for psql itself go after `--`. PGOPTIONS from the caller wins over the search_path from DATABASE_URL.
+
+require 'bundler/setup'
+require 'aws-sdk-dsql'
+require 'optparse'
+require 'tempfile'
+require 'uri'
+require_relative '../lib/dsql'
+
+database_url = ENV['DATABASE_URL']&.then { URI.parse(_1) }
+host = ENV['PGHOST'] || database_url&.host
+role = ENV['PGUSER'] || 'admin'
+
+opt = OptionParser.new do |o|
+  o.on('-h', '--host HOST', 'DSQL host') { host = _1 }
+  o.on('-U', '--username USER', 'role') { role = _1 }
+end
+
+argv = ARGV.dup
+external_command = argv.index('--')&.then { argv[_1 + 1..] }
+opt.parse!(argv)
+abort "PGHOST, DATABASE_URL or -h is required\n#{opt.help}" if host.nil? || host.empty?
+abort "Invalid DSQL host format #{host.inspect}" unless Dsql.host?(host)
+region = Dsql.region_of(host)
+
+token_generator = Aws::DSQL::AuthTokenGenerator.new(credentials: Aws::DSQL::Client.new(region:).config.credentials)
+
+password_token = {
+  endpoint: host,
+  region:,
+  expires_in: 3600
+}.then do |params|
+  case role
+  when "admin"
+    token_generator.generate_db_connect_admin_auth_token(params)
+  else
+    token_generator.generate_db_connect_auth_token(params)
+  end
+end
+
+# Some tools (psqldef among them) read PGPASSFILE but not PGPASSWORD.
+pgpassfile = Tempfile.new('pgpass').tap do |f|
+  f.write("*:*:*:#{role}:#{password_token}\n")
+  f.flush
+end
+ObjectSpace.undefine_finalizer(pgpassfile)
+ENV['PGPASSFILE'] = pgpassfile.path
+ENV['PGPASSWORD'] = password_token
+ENV['PGHOST'] = host
+ENV['PGPORT'] = '5432'
+ENV['PGSSLMODE'] = 'verify-full'
+ENV['PGSSLROOTCERT'] = Dsql.ssl_root_cert
+ENV['PGDATABASE'] = 'postgres'
+ENV['PGUSER'] = role
+if ENV['PGOPTIONS'].nil? && (search_path = URI.decode_www_form(database_url&.query.to_s).to_h['schema_search_path'])
+  ENV['PGOPTIONS'] = "--search_path=#{search_path}"
+end
+
+if external_command
+  exec(*external_command)
+else
+  exec 'psql', *argv
+end

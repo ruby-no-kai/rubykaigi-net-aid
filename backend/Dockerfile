@@ -35,6 +35,12 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# psqldef applies db/schema/*.sql in the pre-deploy step; keep the version in sync with mise.toml
+RUN --mount=type=tmpfs,target=/tmp/psqldef \
+    ( cd /tmp/psqldef && curl -SsfLO "https://github.com/sqldef/sqldef/releases/download/v3.11.23/psqldef_linux_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" ) \
+ && printf '%s\n' "b103c0a94dc12cb6112856427b9224b10f912415337efbef4969885b3a423d96  /tmp/psqldef/psqldef_linux_arm64.tar.gz" "c648d86a2f3d66aa6285626173409cba5f7cbb4b4e890ef1040a1330c87a1a2b  /tmp/psqldef/psqldef_linux_amd64.tar.gz" | sha256sum -c --strict --ignore-missing - \
+ && tar xf /tmp/psqldef/psqldef_linux_*.tar.gz -C /usr/local/bin psqldef
+
 # Install application gems
 COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
@@ -59,6 +65,7 @@ USER 1000:1000
 # Copy built artifacts: gems, application
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
+COPY --from=build /usr/local/bin/psqldef /usr/local/bin/psqldef
 
 # Entrypoint prepares the database.
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]

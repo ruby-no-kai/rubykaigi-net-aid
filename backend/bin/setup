@@ -20,6 +20,11 @@ FileUtils.chdir APP_ROOT do
   #   FileUtils.cp "config/database.yml.sample", "config/database.yml"
   # end
 
+  unless ENV["DATABASE_URL"]
+    puts "\n== Starting PostgreSQL =="
+    system! "docker compose up -d --wait db"
+  end
+
   puts "\n== Preparing database =="
   system! "bin/rails db:prepare"
   system! "bin/rails db:reset" if ARGV.include?("--reset")

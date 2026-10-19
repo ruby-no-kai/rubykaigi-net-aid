@@ -29,8 +29,9 @@ Rails.application.configure do
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
 
-  # Raise an error on page load if there are pending migrations.
-  config.active_record.migration_error = :page_load
+  # Schema is managed by psqldef; there are no migrations to check.
+  config.active_record.migration_error = false
+  config.active_record.dump_schema_after_migration = false
 
   # Highlight code that triggered database queries in logs.
   config.active_record.verbose_query_logs = true

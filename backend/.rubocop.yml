@@ -6,3 +6,11 @@ inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 # # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
 # Layout/SpaceInsideArrayLiteralBrackets:
 #   Enabled: false
+
+require:
+  - ./rubocop/transaction_occ_awareness.rb
+
+Dsql/TransactionOccAwareness:
+  Enabled: true
+  Exclude:
+    - app/models/concerns/dsql_transactionable.rb

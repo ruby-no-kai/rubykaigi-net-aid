@@ -4,6 +4,9 @@ source "https://rubygems.org"
 gem "rails", "~> 8.1.4"
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.1"
+# Aurora DSQL IAM authentication
+gem "aws-sdk-dsql"
+gem "pg-aws_rds_iam"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 
