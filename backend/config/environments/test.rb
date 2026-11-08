@@ -51,4 +51,7 @@ Rails.application.configure do
   config.action_controller.raise_on_missing_callback_actions = true
 
   config.active_record.dump_schema_after_migration = false
+
+  config.x.authn.session_client_secret = "test-secret"
+  config.x.authn.developer_sign_in = true
 end

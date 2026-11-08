@@ -8,3 +8,5 @@ en:
       failed_precondition: Failed Precondition
       invalid_record: Invalid Record
       internal: Internal Error
+      session_expired: Session Expired
+      session_revoked: Session Revoked

@@ -19,12 +19,22 @@ module Errors
     def self.problem_type_annotation = "rubykaigi.net_aid.problem_type"
   end
 
-  # The request carries no valid session.
+  # The request carries no credentials an action requires, or credentials that are refused.
   class Unauthenticated < ApiError
     problem_type :PROBLEM_TYPE_UNAUTHENTICATED
   end
 
-  # The session may not act on the resource the request names.
+  # The session's himari access token has expired, and ViewerService.RefreshSession renews it.
+  class SessionExpired < ApiError
+    problem_type :PROBLEM_TYPE_SESSION_EXPIRED
+  end
+
+  # himari refused to refresh the session, which is cleared.
+  class SessionRevoked < ApiError
+    problem_type :PROBLEM_TYPE_SESSION_REVOKED
+  end
+
+  # The caller may not perform the action the request names.
   class PermissionDenied < ApiError
     problem_type :PROBLEM_TYPE_PERMISSION_DENIED
   end

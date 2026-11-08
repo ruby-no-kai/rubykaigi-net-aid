@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Signing in to net-aid</title>
+  </head>
+  <body>
+    <%= form_tag(@sign_in_path, method: :post, id: "sign-in") do %>
+      <button type="submit">Continue to sign in</button>
+    <% end %>
+    <script>document.getElementById("sign-in").submit();</script>
+  </body>
+</html>

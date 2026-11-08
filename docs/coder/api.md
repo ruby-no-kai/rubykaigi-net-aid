@@ -96,14 +96,40 @@ raise Errors::NotFound.new(detail: "No device has the name #{name.inspect}.")
 
 `Api::ApplicationController` authenticates every call, then authorises it by the action of its RPC.
 
-- `Authenticatable` (`app/controllers/concerns/authenticatable.rb`) sets `Current.actor` from an `Authorization: Bearer` token: a himari access token (`at+jwt`) for a client in `config.x.authn.himari_client_ids`, a GitHub Actions ID token, or an `sts:GetWebIdentityToken` token from an issuer in `config.x.authn.aws_issuers`. GitHub and AWS tokens must carry the audience `https://aid.rubykaigi.net`. A call without credentials stays anonymous; refused credentials answer `unauthenticated`.
+- `Authenticatable` (`app/controllers/concerns/authenticatable.rb`) sets `Current.actor` from the browser session first, then from an `Authorization: Bearer` token: a himari access token (`at+jwt`) for a client in `config.x.authn.himari_client_ids`, a GitHub Actions ID token, or an `sts:GetWebIdentityToken` token from an issuer in `config.x.authn.aws_issuers`. GitHub and AWS tokens must carry the audience `https://aid.rubykaigi.net`. A call without credentials stays anonymous; refused credentials answer `unauthenticated`.
 - People's roles come from himari's `roles` claim. Machine roles come from `config.x.authn.machine_roles`, keyed by issuer and exact subject, extended without a deploy through the `NET_AID_MACHINE_ROLES` JSON.
 - `Authorizable` derives the action `netaid:<Method>` from the routed RPC and asks `Authz::Policy.permit?`. An anonymous caller is answered `unauthenticated`, a caller without a role allowing it `permission_denied`. Controllers declare nothing.
 - Role statements live in `app/models/authz/policy.rb`. An admin-only RPC is added to the operator's deny list. `spec/proto/rpc_actions_spec.rb` fails when some routed RPC is allowed for no role, or when two services declare the same method name.
 - Check a further action inside an RPC with `authorize!("netaid:RestoreMutation", episode:)`.
 - Read the caller with `Current.actor`, which raises when there is none, or `Current.actor_maybe`.
 
-Specs mint tokens with `spec/support/authn_helper.rb` (`himari_access_token`, `github_actions_token`, `aws_token`) after `stub_trusted_jwks`. WebMock blocks every other network call.
+Specs mint tokens with `spec/support/authn_helper.rb` (`himari_access_token`, `github_actions_token`, `aws_token`) after `stub_trusted_jwks`, and sign a browser in with `sign_in_as(roles:)`. WebMock blocks every other network call.
+
+### Browser sessions
+
+People sign in through himari in the browser. The session lives in the encrypted `__Host-netaid-sess` cookie (`Secure`, `HttpOnly`, `SameSite=Lax`), holding the Actor, its roles and the himari access and refresh tokens (`Authn::BrowserSession`).
+
+| Path | What |
+|---|---|
+| `GET /auth/himari?return_to=<path>` | a page that POSTs, with a CSRF token, to OmniAuth's request phase; `return_to` must be a path on this origin |
+| `GET /auth/himari/callback` | stores the session and redirects to `return_to` |
+| `POST /auth/sign_out` | clears the session |
+| `GET /auth/developer` | development and test only: signs in as any subject with any roles, for an hour |
+
+- An RPC whose session has an expired access token answers `session-expired` without refreshing it. The frontend then calls `ViewerService.RefreshSession` once and retries; it is the only RPC that rewrites the session, so concurrent RPCs never race on a rotated refresh token.
+- A refresh himari refuses clears the session and answers `session-revoked`.
+- The session cookie expires 14 days after it was last written, matching himari's refresh-token cap.
+- Request specs that use the session cookie must run over https (`https!`), as the cookie is `Secure`. `sign_in_as` does this.
+
+### himari configuration
+
+The himari clients are configured in `rubykaigi-net/tf/himari/config.ru`, outside this repository:
+
+- `net-aid` (confidential, redirect `https://aid.rubykaigi.net/auth/himari/callback`), `net-aid-local` (confidential, redirect `http://localhost:3000/auth/himari/callback`, PKCE) and `net-aid-cli` (public, loopback redirects, PKCE).
+- An AuthorizationRule for the three: `mint_jwt_access_token = true`, access tokens of 1 hour and refresh tokens of 14 days, and a `roles` claim from GitHub teams (`ruby-no-kai/rk-noc` admin, `kaigionrails/infra` operator, `ruby-no-kai/rk-orgz` and `ruby-no-kai/rkNN-orgz` viewer).
+- The Actor is read from the access token, never the ID token, so the access token must carry `name` and `roles`.
+
+The backend reads the `net-aid` client secret from `NET_AID_HIMARI_CLIENT_SECRET` (`net-aid-local`'s in development).
 
 ## Browser protection
 

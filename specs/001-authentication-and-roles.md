@@ -259,19 +259,19 @@ Implementation in progress. Implementors MUST keep this section updated as they 
 
 ### Checklist
 
-- [ ] Add `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt`; enable the cookies and session middleware with the `__Host-netaid-sess` encrypted cookie store
-- [ ] Remove `config/initializers/cors.rb`
-- [ ] `proto/rubykaigi/net_aid/viewer.proto`: `Actor`, `Viewer.actor`, `Viewer.roles`, `RefreshSession`; regenerate
-- [ ] `problem.proto` and `app/models/errors.rb`: `SESSION_EXPIRED`, `SESSION_REVOKED`
+- [x] Add `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt`; enable the cookies and session middleware with the `__Host-netaid-sess` encrypted cookie store
+- [x] Remove `config/initializers/cors.rb`
+- [x] `proto/rubykaigi/net_aid/viewer.proto`: `Actor`, `Viewer.actor`, `Viewer.roles`, `RefreshSession`; regenerate
+- [x] `problem.proto` and `app/models/errors.rb`: `SESSION_EXPIRED`, `SESSION_REVOKED`
 - [x] `Actor`, `Current`
 - [x] `Authn::Issuer`, `Authn::BearerVerifier` (himari `at+jwt`, GitHub Actions, AWS), JWKS cache refetched on unknown `kid`
 - [x] `Authn::MachineRoles` with the `NET_AID_MACHINE_ROLES` merge
-- [ ] `Auth::SessionsController` (`/auth/himari`, callback with `return_to`, `/auth/sign_out`, development-only `/auth/developer`)
-- [ ] `Authn::SessionRefresher` and `ViewerService.RefreshSession`; `GetViewer` returning the Actor and roles
-- [ ] `Authenticatable` and `Authorizable` concerns in `Api::ApplicationController`
+- [x] `Auth::SessionsController` (`/auth/himari`, callback with `return_to`, `/auth/sign_out`, development-only `/auth/developer`)
+- [x] `Authn::SessionRefresher` and `ViewerService.RefreshSession`; `GetViewer` returning the Actor and roles
+- [x] `Authenticatable` and `Authorizable` concerns in `Api::ApplicationController`
 - [x] `Authz::Policy`, `Authz::Statement` and the role statements
-- [ ] Actor tags and `authn_failure`, `authn_issuer`, `authz_denied_action` payload fields on the canonical line (021)
-- [ ] Request and unit specs listed in the Implementation Plan, including the route-walking spec
+- [x] Actor tags and `authn_failure`, `authn_issuer`, `authz_denied_action` payload fields on the canonical line (021)
+- [x] Request and unit specs listed in the Implementation Plan, including the route-walking spec
 - [ ] himari: `net-aid`, `net-aid-local`, `net-aid-cli` clients and their AuthorizationRule in `rubykaigi-net/tf/himari/config.ru`
 
 ### Updates
@@ -290,3 +290,13 @@ Implementation in progress. Implementors MUST keep this section updated as they 
   - `Authorizable` resolves no Episode yet, since no RPC carries a `BranchRef` or `MutationHeader`; `authorization_episode_maybe` returns nil until 004 adds them, and the `episode` tag is set when it returns one.
   - Authorisation runs before request validation, because connect_rpc_rails moves `validate_connect_message!` behind every callback declared above an RPC. An unauthorised caller learns nothing about what a valid request looks like. When `authorization_episode_maybe` starts reading a `BranchRef`, it reads an unvalidated message.
   - The route-walking spec (`spec/proto/rpc_actions_spec.rb`) also asserts that method names are unique across services.
+- 2026-11-08: Browser sign-in. Cookies and the `__Host-netaid-sess` cookie store are in the middleware stack, `config/initializers/cors.rb` is gone, and `Auth::SessionsController`, `Authn::BrowserSession`, `Authn::SessionRefresher`, `ViewerService.RefreshSession` and `PROBLEM_TYPE_SESSION_EXPIRED`/`PROBLEM_TYPE_SESSION_REVOKED` are in. `Authenticatable` reads the session before a bearer token. `docs/coder/api.md` describes the flow and what himari must provide.
+  - `RefreshSession` is in `viewer_service.proto`, beside `GetViewer`, rather than `viewer.proto`, which holds the messages.
+  - `Auth::SessionsController` inherits `ActionController::Base`, for the CSRF token and views. `GET /auth/himari` answers a page that POSTs to OmniAuth's request phase with the token, since OmniAuth 2 starts a sign-in only on a POST that omniauth-rails_csrf_protection checks. The page submits itself with an inline script and keeps a button for when scripts are off.
+  - `/auth/sign_out` is POST only, guarded by `SameSite=Lax` and a `Sec-Fetch-Site`/`Origin` check instead of a CSRF token the frontend does not hold. Open point for 005: the frontend signs out with a form POST or a same-origin `fetch`.
+  - The Actor and roles of a session come from verifying its himari access token (audience `net-aid`, or `net-aid-local` in development), the same as a bearer token, not from the ID token. So the himari rule must put `name` and `roles` in access tokens; listed in `docs/coder/api.md`.
+  - The cookie gets `expire_after` (14 days) only on the writes, sign-in and `RefreshSession`. Setting it on the store would rewrite the cookie on every request that reads the session, which brings back the race on a rotated refresh token.
+  - `RefreshSession` without a session answers `unauthenticated`. A developer session, a refresh whose new token names another subject, and an access token himari answers that fails verification all clear the session and answer `session-revoked`. A himari outage (any other non-2xx) is a 500 and keeps the session.
+  - `/auth/developer` sessions have issuer `developer`, last an hour and cannot be refreshed.
+  - `filter_parameters` also filters the callback's `code`. No request headers are logged.
+  - The `rubykaigi-net/tf/himari/config.ru` item stays open: that file is in another repository. What it must contain is in this spec's Implementation Plan and in `docs/coder/api.md`.

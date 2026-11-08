@@ -43,6 +43,12 @@ module Rk
       # The server failed to answer the request. Report the request ID that comes with the error.
       PROBLEM_TYPE_INTERNAL: 7
 
+      # The session's sign-in has expired. Call ViewerService.RefreshSession once, then retry.
+      PROBLEM_TYPE_SESSION_EXPIRED: 8
+
+      # The identity provider refused to refresh the session, which is now cleared. Sign in again.
+      PROBLEM_TYPE_SESSION_REVOKED: 9
+
       def self.lookup:
           (0 number) -> :PROBLEM_TYPE_UNSPECIFIED
         | (1 number) -> :PROBLEM_TYPE_UNAUTHENTICATED
@@ -52,6 +58,8 @@ module Rk
         | (5 number) -> :PROBLEM_TYPE_FAILED_PRECONDITION
         | (6 number) -> :PROBLEM_TYPE_INVALID_RECORD
         | (7 number) -> :PROBLEM_TYPE_INTERNAL
+        | (8 number) -> :PROBLEM_TYPE_SESSION_EXPIRED
+        | (9 number) -> :PROBLEM_TYPE_SESSION_REVOKED
         | (::int number) -> names?
         | ...
 
@@ -64,14 +72,16 @@ module Rk
         | (:PROBLEM_TYPE_FAILED_PRECONDITION name) -> 5
         | (:PROBLEM_TYPE_INVALID_RECORD name) -> 6
         | (:PROBLEM_TYPE_INTERNAL name) -> 7
+        | (:PROBLEM_TYPE_SESSION_EXPIRED name) -> 8
+        | (:PROBLEM_TYPE_SESSION_REVOKED name) -> 9
         | (::Symbol name) -> numbers?
         | ...
 
-      type names = :PROBLEM_TYPE_UNSPECIFIED | :PROBLEM_TYPE_UNAUTHENTICATED | :PROBLEM_TYPE_PERMISSION_DENIED | :PROBLEM_TYPE_NOT_FOUND | :PROBLEM_TYPE_CONFLICT | :PROBLEM_TYPE_FAILED_PRECONDITION | :PROBLEM_TYPE_INVALID_RECORD | :PROBLEM_TYPE_INTERNAL
+      type names = :PROBLEM_TYPE_UNSPECIFIED | :PROBLEM_TYPE_UNAUTHENTICATED | :PROBLEM_TYPE_PERMISSION_DENIED | :PROBLEM_TYPE_NOT_FOUND | :PROBLEM_TYPE_CONFLICT | :PROBLEM_TYPE_FAILED_PRECONDITION | :PROBLEM_TYPE_INVALID_RECORD | :PROBLEM_TYPE_INTERNAL | :PROBLEM_TYPE_SESSION_EXPIRED | :PROBLEM_TYPE_SESSION_REVOKED
 
-      type strings = "PROBLEM_TYPE_UNSPECIFIED" | "PROBLEM_TYPE_UNAUTHENTICATED" | "PROBLEM_TYPE_PERMISSION_DENIED" | "PROBLEM_TYPE_NOT_FOUND" | "PROBLEM_TYPE_CONFLICT" | "PROBLEM_TYPE_FAILED_PRECONDITION" | "PROBLEM_TYPE_INVALID_RECORD" | "PROBLEM_TYPE_INTERNAL"
+      type strings = "PROBLEM_TYPE_UNSPECIFIED" | "PROBLEM_TYPE_UNAUTHENTICATED" | "PROBLEM_TYPE_PERMISSION_DENIED" | "PROBLEM_TYPE_NOT_FOUND" | "PROBLEM_TYPE_CONFLICT" | "PROBLEM_TYPE_FAILED_PRECONDITION" | "PROBLEM_TYPE_INVALID_RECORD" | "PROBLEM_TYPE_INTERNAL" | "PROBLEM_TYPE_SESSION_EXPIRED" | "PROBLEM_TYPE_SESSION_REVOKED"
 
-      type numbers = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
+      type numbers = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
     end
   end
 end

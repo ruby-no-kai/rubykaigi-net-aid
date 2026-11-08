@@ -44,8 +44,23 @@ module Netaid
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
+    # Completed carries everything Started does, so Started logs at debug.
+    config.rails_semantic_logger.started = false
+
+    # The browser holds its himari sign-in in an encrypted cookie session, which an API-only app
+    # leaves out of the middleware stack.
+    config.session_store :cookie_store, key: "__Host-netaid-sess", path: "/", secure: true, httponly: true, same_site: :lax
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use config.session_store, config.session_options
+
     config.x.authn.himari_issuer = "https://idp.rubykaigi.net"
     config.x.authn.himari_client_ids = %w[net-aid net-aid-cli]
+    # The confidential client the browser signs in through.
+    config.x.authn.session_client_id = "net-aid"
+    config.x.authn.session_client_secret = ENV.fetch("NET_AID_HIMARI_CLIENT_SECRET", nil)
+    # The absolute cap himari puts on a sign-in through its refresh token's lifetime.
+    config.x.authn.session_lifetime = 14.days
+    config.x.authn.developer_sign_in = false
     config.x.authn.audience = "https://aid.rubykaigi.net"
     config.x.authn.github_actions_issuer = "https://token.actions.githubusercontent.com"
     # sts:GetWebIdentityToken issuers trusted for aws-iam callers, each a per-account

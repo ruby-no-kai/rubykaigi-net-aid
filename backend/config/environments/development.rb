@@ -65,6 +65,8 @@ Rails.application.configure do
 
   # The confidential client of sign-ins to a local server.
   config.x.authn.himari_client_ids += %w[net-aid-local]
+  config.x.authn.session_client_id = "net-aid-local"
+  config.x.authn.developer_sign_in = true
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true

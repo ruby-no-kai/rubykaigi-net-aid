@@ -4,9 +4,29 @@
 module Api
   module Viewer
     class ViewersController < Api::Viewer::ApplicationController
+      # An expired session is what RefreshSession renews, so it reads the session itself.
+      skip_before_action :authenticate, only: :refresh_session
+
       #: () -> Rk::NetAid::ViewerServiceGetViewerResponse
       def get_viewer
         Rk::NetAid::ViewerServiceGetViewerResponse.new(viewer: viewer_message)
+      end
+
+      #: () -> Rk::NetAid::ViewerServiceRefreshSessionResponse
+      def refresh_session
+        browser_session = Authn::BrowserSession.load(session)
+        raise Errors::Unauthenticated.new(detail: "The request carries no session to refresh.") unless browser_session
+
+        refreshed = Authn::SessionRefresher.new.refresh(browser_session)
+        refreshed.store(session)
+        request.session_options[:expire_after] = Rails.configuration.x.authn.session_lifetime
+        authenticated_as(refreshed.actor_for(user_agent: request_user_agent))
+
+        Rk::NetAid::ViewerServiceRefreshSessionResponse.new(viewer: viewer_message)
+      rescue Authn::SessionRefresher::Revoked
+        reset_session
+        RequestLogContext.add_fields(authn_failure: "session_revoked")
+        raise Errors::SessionRevoked.new(detail: "The session could not be refreshed. Sign in again.")
       end
 
       #: () -> Rk::NetAid::Viewer

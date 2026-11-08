@@ -70,4 +70,16 @@ enum ProblemType {
     uri: "internal"
     http_status: 500
   }];
+
+  // The session's sign-in has expired. Call ViewerService.RefreshSession once, then retry.
+  PROBLEM_TYPE_SESSION_EXPIRED = 8 [(problem_type) = {
+    uri: "session-expired"
+    http_status: 401
+  }];
+
+  // The identity provider refused to refresh the session, which is now cleared. Sign in again.
+  PROBLEM_TYPE_SESSION_REVOKED = 9 [(problem_type) = {
+    uri: "session-revoked"
+    http_status: 401
+  }];
 }

@@ -10,6 +10,9 @@ module GeneratedUrlHelpersModule
   include ::ActionDispatch::Routing::PolymorphicRoutes
 
   sig { params(args: T.untyped).returns(String) }
+  def failure_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
   def rails_health_check_url(*args); end
 
   sig { params(args: T.untyped).returns(String) }
@@ -23,4 +26,10 @@ module GeneratedUrlHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def rails_info_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def sign_in_url(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def sign_out_url(*args); end
 end

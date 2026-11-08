@@ -59,6 +59,27 @@ module AuthnHelper
     sign_token(standard_claims(iss: AWS, aud: AUDIENCE, sub:).merge(overrides).compact, key: AuthnHelper.ec_key)
   end
 
+  # Signs the integration session in through a mocked himari callback. The session cookie is
+  # Secure, so the session switches to https.
+  def sign_in_as(roles: %w[operator], sub: "github_1", expires_in: 3600, refresh_token: "refresh-1")
+    https!
+    OmniAuth.config.test_mode = true
+    OmniAuth.config.mock_auth[:himari] = OmniAuth::AuthHash.new(
+      provider: "himari",
+      uid: sub,
+      credentials: {
+        token: himari_access_token(sub:, roles:, client_id: "net-aid"),
+        refresh_token:,
+        expires_at: Time.now.to_i + expires_in,
+        expires: true
+      },
+    )
+    get "/auth/himari/callback"
+  ensure
+    OmniAuth.config.test_mode = false
+    OmniAuth.config.mock_auth.delete(:himari)
+  end
+
   def with_machine_roles(mapping)
     authn = Rails.configuration.x.authn
     original = authn.machine_roles
