@@ -182,7 +182,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 - Verify signature, `iss`, `aud`, `exp`, `nbf` and `iat` on every bearer token. Reject `alg: none` and algorithms outside an allowlist (RS256, ES256).
 - JWKS are cached per issuer until a token names an unknown `kid`, which triggers one refetch. Refetches are rate-limited per issuer.
 - Machine subjects match exactly, never by prefix or pattern: GitHub's `sub` pins repository and ref or environment, and an AWS `sub` is a full role ARN. Grant write roles to an `environment:` subject protected by GitHub environment rules rather than to a branch ref.
-- The session cookie is `__Host-netaid-sess`, `Secure`, `HttpOnly`, `SameSite=Lax`, and encrypted with the Rails secret key base. It holds himari tokens, so it is as sensitive as they are.
+- The session cookie is `__Host-Http-netaid-sess`, `Secure`, `HttpOnly`, `SameSite=Lax`, and encrypted with the Rails secret key base. It holds himari tokens, so it is as sensitive as they are. The `__Host-Http-` prefix makes a browser that supports it refuse the cookie unless it is also `HttpOnly`, so script on the page cannot set one.
 - Bearer tokens and cookies are filtered from logs (`filter_parameter_logging`, request header logging).
 - The Actor's `display_name` is shown to every operator in history views. It holds a name the person chose in himari, nothing more.
 - No CORS: the frontend is same-origin on `aid.rubykaigi.net`, and bearer callers are not browsers. `rack-cors` stays out, and `ConnectForgeryProtection` is unchanged.
@@ -260,7 +260,7 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 
 ### Checklist
 
-- [x] Add `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt`; enable the cookies and session middleware with the `__Host-netaid-sess` encrypted cookie store
+- [x] Add `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt`; enable the cookies and session middleware with the `__Host-Http-netaid-sess` encrypted cookie store
 - [x] Remove `config/initializers/cors.rb`
 - [x] `proto/rubykaigi/net_aid/viewer.proto`: `Actor`, `Viewer.actor`, `Viewer.roles`, `RefreshSession`; regenerate
 - [x] `problem.proto` and `app/models/errors.rb`: `SESSION_EXPIRED`, `SESSION_REVOKED`
@@ -290,7 +290,7 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - `Authorizable` resolves no Episode yet, since no RPC carries a `BranchRef` or `MutationHeader`; `authorization_episode_maybe` returns nil until 004 adds them, and the `episode` tag is set when it returns one.
   - Authorisation runs before request validation, because connect_rpc_rails moves `validate_connect_message!` behind every callback declared above an RPC. An unauthorised caller learns nothing about what a valid request looks like. When `authorization_episode_maybe` starts reading a `BranchRef`, it reads an unvalidated message.
   - The route-walking spec (`spec/proto/rpc_actions_spec.rb`) also asserts that method names are unique across services.
-- 2026-11-08: Browser sign-in. Cookies and the `__Host-netaid-sess` cookie store are in the middleware stack, `config/initializers/cors.rb` is gone, and `Auth::SessionsController`, `Authn::BrowserSession`, `Authn::SessionRefresher`, `ViewerService.RefreshSession` and `PROBLEM_TYPE_SESSION_EXPIRED`/`PROBLEM_TYPE_SESSION_REVOKED` are in. `Authenticatable` reads the session before a bearer token. `docs/coder/api.md` describes the flow and what himari must provide.
+- 2026-11-08: Browser sign-in. Cookies and the `__Host-Http-netaid-sess` cookie store are in the middleware stack, `config/initializers/cors.rb` is gone, and `Auth::SessionsController`, `Authn::BrowserSession`, `Authn::SessionRefresher`, `ViewerService.RefreshSession` and `PROBLEM_TYPE_SESSION_EXPIRED`/`PROBLEM_TYPE_SESSION_REVOKED` are in. `Authenticatable` reads the session before a bearer token. `docs/coder/api.md` describes the flow and what himari must provide.
   - `RefreshSession` is in `viewer_service.proto`, beside `GetViewer`, rather than `viewer.proto`, which holds the messages.
   - `Auth::SessionsController` inherits `ActionController::Base`, for the CSRF token and views. `GET /auth/himari` answers a page that POSTs to OmniAuth's request phase with the token, since OmniAuth 2 starts a sign-in only on a POST that omniauth-rails_csrf_protection checks. The page submits itself with an inline script and keeps a button for when scripts are off.
   - `/auth/sign_out` is POST only, guarded by `SameSite=Lax` and a `Sec-Fetch-Site`/`Origin` check instead of a CSRF token the frontend does not hold. Open point for 005: the frontend signs out with a form POST or a same-origin `fetch`.

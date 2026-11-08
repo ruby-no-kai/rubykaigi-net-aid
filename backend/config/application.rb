@@ -49,7 +49,7 @@ module Netaid
 
     # The browser holds its himari sign-in in an encrypted cookie session, which an API-only app
     # leaves out of the middleware stack.
-    config.session_store :cookie_store, key: "__Host-netaid-sess", path: "/", secure: true, httponly: true, same_site: :lax
+    config.session_store :cookie_store, key: "__Host-Http-netaid-sess", path: "/", secure: true, httponly: true, same_site: :lax
     config.middleware.use ActionDispatch::Cookies
     config.middleware.use config.session_store, config.session_options
 

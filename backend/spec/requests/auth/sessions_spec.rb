@@ -75,7 +75,7 @@ RSpec.describe "Browser sign-in" do
     it "sets the session cookie with its security attributes" do
       sign_in_as
 
-      cookie = response.headers["set-cookie"].then { Array(it).join("\n") }.lines.find { it.start_with?("__Host-netaid-sess=") }
+      cookie = response.headers["set-cookie"].then { Array(it).join("\n") }.lines.find { it.start_with?("__Host-Http-netaid-sess=") }
       expect(cookie).to include("path=/", "secure", "httponly", "samesite=lax", "expires=")
       expect(cookie).not_to include("domain=")
     end

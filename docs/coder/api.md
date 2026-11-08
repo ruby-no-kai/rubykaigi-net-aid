@@ -107,7 +107,7 @@ Specs mint tokens with `spec/support/authn_helper.rb` (`himari_access_token`, `g
 
 ### Browser sessions
 
-People sign in through himari in the browser. The session lives in the encrypted `__Host-netaid-sess` cookie (`Secure`, `HttpOnly`, `SameSite=Lax`), holding the Actor, its roles and the himari access and refresh tokens (`Authn::BrowserSession`).
+People sign in through himari in the browser. The session lives in the encrypted `__Host-Http-netaid-sess` cookie (`Secure`, `HttpOnly`, `SameSite=Lax`), holding the Actor, its roles and the himari access and refresh tokens (`Authn::BrowserSession`).
 
 | Path | What |
 |---|---|
