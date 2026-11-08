@@ -23,6 +23,10 @@ gem "googleapis-common-protos-types", require: "google/rpc/error_details_pb"
 gem "alba"
 # JSON request logs with one canonical line per request
 gem "rails_semantic_logger"
+# himari sign-in for the browser, and verification of bearer JWTs
+gem "omniauth-himari"
+gem "omniauth-rails_csrf_protection"
+gem "jwt"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 
@@ -31,9 +35,6 @@ gem "puma", ">= 5.0"
 
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[windows jruby]
-
-# Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
-# gem "rack-cors"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
@@ -52,6 +53,7 @@ group :development, :test do
   gem "rubocop-rspec_rails", require: false
 
   gem "rspec-rails"
+  gem "webmock"
 
   gem "sorbet", require: false
   gem "tapioca", require: false

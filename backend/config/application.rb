@@ -43,5 +43,24 @@ module Netaid
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    config.x.authn.himari_issuer = "https://idp.rubykaigi.net"
+    config.x.authn.himari_client_ids = %w[net-aid net-aid-cli]
+    config.x.authn.audience = "https://aid.rubykaigi.net"
+    config.x.authn.github_actions_issuer = "https://token.actions.githubusercontent.com"
+    # sts:GetWebIdentityToken issuers trusted for aws-iam callers, each a per-account
+    # https://<id>.tokens.sts.global.api.aws.
+    config.x.authn.aws_issuers = []
+    # Merged once autoloading is up, as Authn::MachineRoles lives in app/.
+    config.after_initialize do
+      config.x.authn.machine_roles = Authn::MachineRoles.merge(
+        {
+          "github-actions" => {"repo:ruby-no-kai/rubykaigi-net:ref:refs/heads/master" => %w[exporter]},
+          "aws-iam" => {}
+        },
+        # Same shape as JSON. A subject in both gets the union of their roles.
+        ENV.fetch("NET_AID_MACHINE_ROLES", nil),
+      )
+    end
   end
 end

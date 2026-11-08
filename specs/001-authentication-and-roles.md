@@ -255,7 +255,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 
 ## Current Status
 
-Interview complete. Implementors MUST keep this section updated as they work.
+Implementation in progress. Implementors MUST keep this section updated as they work.
 
 ### Checklist
 
@@ -263,9 +263,9 @@ Interview complete. Implementors MUST keep this section updated as they work.
 - [ ] Remove `config/initializers/cors.rb`
 - [ ] `proto/rubykaigi/net_aid/viewer.proto`: `Actor`, `Viewer.actor`, `Viewer.roles`, `RefreshSession`; regenerate
 - [ ] `problem.proto` and `app/models/errors.rb`: `SESSION_EXPIRED`, `SESSION_REVOKED`
-- [ ] `Actor`, `Current`
-- [ ] `Authn::Issuer`, `Authn::BearerVerifier` (himari `at+jwt`, GitHub Actions, AWS), JWKS cache refetched on unknown `kid`
-- [ ] `Authn::MachineRoles` with the `NET_AID_MACHINE_ROLES` merge
+- [x] `Actor`, `Current`
+- [x] `Authn::Issuer`, `Authn::BearerVerifier` (himari `at+jwt`, GitHub Actions, AWS), JWKS cache refetched on unknown `kid`
+- [x] `Authn::MachineRoles` with the `NET_AID_MACHINE_ROLES` merge
 - [ ] `Auth::SessionsController` (`/auth/himari`, callback with `return_to`, `/auth/sign_out`, development-only `/auth/developer`)
 - [ ] `Authn::SessionRefresher` and `ViewerService.RefreshSession`; `GetViewer` returning the Actor and roles
 - [ ] `Authenticatable` and `Authorizable` concerns in `Api::ApplicationController`
@@ -277,3 +277,11 @@ Interview complete. Implementors MUST keep this section updated as they work.
 ### Updates
 
 - 2026-11-08: Interview complete. Logging moved onto the canonical log line of 021.
+- 2026-11-08: Added the `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt` gems (plus `webmock` for specs); the session middleware follows with the browser sign-in. `Actor`, `Current`, `Authn::Issuer` (subclasses `Himari`, `GithubActions`, `AwsIam`), `Authn::BearerVerifier`, `Authn::JwksCache` and `Authn::MachineRoles` are in.
+  - `config.x.authn.machine_roles` is merged in a `config.after_initialize` block of `config/application.rb`, since `Authn::MachineRoles` is autoloaded and not yet loadable while the application class body runs.
+  - `config.x.authn.aws_issuers` is empty and the base `aws-iam` mapping has no entry: the rubykaigi account's `sts:GetWebIdentityToken` issuer URL and the role ARN to grant are not known here. Open point: fill both in, or add them through `NET_AID_MACHINE_ROLES` and an environment override.
+  - JWKS URLs: himari `/public/jwks`, GitHub `/.well-known/jwks`, AWS `/.well-known/jwks.json` (the path AWS documents for outbound identity federation issuers). The cache refetches a JWKS at most once a minute per issuer.
+  - Failure reasons outside the spec's list are folded into it: a malformed token, a disallowed algorithm and a missing required claim report `bad_signature`; a token not yet valid (`nbf`, future `iat`) reports `expired`. Open point: add dedicated values if the distinction matters.
+  - The algorithm allowlist stays RS256 and ES256 as specified. `sts:GetWebIdentityToken` also offers ES384, which callers must not choose.
+  - A himari access token's `credential_id` uses its `client_id` claim (RFC 9068), which equals `aud` for himari. `display_name` falls back to `sub` when the token has no `name` claim.
+  - `Actor::USER_AGENT_LIMIT` replaces the constant `ActionLogPayloadable` held, so the Actor and the canonical line truncate alike.
