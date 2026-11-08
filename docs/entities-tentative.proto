@@ -1,0 +1,941 @@
+// Entity reference for docs/domain-model.md: shapes, vocabularies and per-entity rules.
+// Illustrative: not built, not linted, field numbers carry no meaning.
+// References are TypeIDs (`*_id`). A Plan row pointing into the Fleet resolves within the Episode's fleet_branch.
+// The trailing comment on each message's header names its TypeID prefix.
+
+syntax = "proto3";
+
+package rubykaigi.net_aid.tentative;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+
+// Columns every branched row carries, in the Plan and in the Fleet.
+// Natural keys are unique per branch (a unique index on `(branch_id, <key>)`).
+message Row {
+  string id = 1;
+  string lineage = 2; // the first incarnation's id; for tracking across branches, never a foreign key
+  string branch_id = 3;
+  int64 updated_seq = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// ---------------------------------------------------------------------------
+// Branching
+// ---------------------------------------------------------------------------
+
+// ep: one occurrence. The slug doubles as the #rk26 interface-description tag.
+message Episode {
+  string id = 1;
+  string slug = 2; // unique: rk26, rk26kor
+  string name = 3;
+  Organizer organizer = 4;
+  google.type.Date starts_on = 5;
+  google.type.Date ends_on = 6;
+  string venue_name = 7;
+  Status status = 8;
+  string plan_branch_id = 9; // the Episode's main Plan branch
+  string fleet_branch_id = 10; // what fills resolve against: Fleet main while open, the Fleet snapshot taken at close
+
+  enum Organizer {
+    ORGANIZER_UNSPECIFIED = 0;
+    ORGANIZER_RK = 1;
+    ORGANIZER_KOR = 2;
+  }
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_PLANNING = 1;
+    STATUS_SETUP = 2;
+    STATUS_LIVE = 3;
+    STATUS_TEARDOWN = 4;
+    STATUS_CLOSED = 5;
+  }
+}
+
+// br: one line of history of one dataset. A frozen branch is a snapshot.
+message Branch {
+  string id = 1;
+  Dataset dataset = 2;
+  string episode_id = 3; // Plan branches only
+  string name = 4; // main, or a snapshot label
+  string parent_id = 5;
+  int64 forked_at_seq = 6; // null for a root
+  int64 head_seq = 7;
+  bool frozen = 8; // a snapshot
+  State state = 9;
+
+  enum Dataset {
+    DATASET_UNSPECIFIED = 0;
+    DATASET_FLEET = 1;
+    DATASET_PLAN = 2;
+  }
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_PREPARING = 1; // copy job running, writes rejected
+    STATE_READY = 2;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Changelog
+// ---------------------------------------------------------------------------
+
+// A human or machine caller: a himari user, a GitHub Actions workflow, an AWS IAM role.
+message Actor {
+  string issuer = 1; // himari, GitHub Actions, AWS IAM
+  string subject = 2;
+  string display_name = 3;
+}
+
+// cs: one per branch per committed transaction.
+message ChangeSet {
+  string id = 1;
+  string branch_id = 2;
+  int64 seq = 3; // gap-free, commit order
+  Actor actor = 4;
+  string mutation_id = 5;
+  google.protobuf.Timestamp committed_at = 6;
+}
+
+// c: one per touched row.
+message Change {
+  string id = 1;
+  string branch_id = 2;
+  int64 seq = 3;
+  string entity_type = 4;
+  string entity_id = 5;
+  Op op = 6;
+  google.protobuf.Any data = 7; // full after-image, stored as jsonb; empty on delete
+
+  enum Op {
+    OP_UNSPECIFIED = 0;
+    OP_UPSERT = 1;
+    OP_DELETE = 2;
+  }
+}
+
+// mut: one API request from a client, e.g. "assign rk-aph26a3 to ap-lb0-01" or "record these 40 scans".
+// The frontend sends it once an action is complete (both halves of a pair scanned), not per scan.
+// It commits in one transaction and yields one ChangeSet per branch it touches.
+// A pair assignment touches the Plan Device and the Fleet Asset, so it yields two ChangeSets.
+// Row-level effects live in its Changes, and what it overwrote is each row's previous Change.
+// This keeps what the changelog cannot hold: the idempotency key and rejected payloads.
+message Mutation {
+  string id = 1; // client-generated idempotency key
+  Actor actor = 2;
+  string rpc = 3; // the method called
+  google.protobuf.Any payload = 4; // the request message as sent
+  map<string, int64> base_seqs = 5; // branch id -> seq the client had synced
+  google.protobuf.Timestamp client_time = 6;
+  google.protobuf.Timestamp received_at = 7;
+  Outcome outcome = 8;
+  string error = 9; // for rejections
+
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    OUTCOME_APPLIED = 1;
+    OUTCOME_REJECTED = 2;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Plan: organisation
+// ---------------------------------------------------------------------------
+
+// site: the <dc> in <host>.<dc>.rubykaigi.net.
+message Site {
+  Row row = 1;
+  string slug = 2; // hnd, nrt, itm, venue, apne1, usw2, transit, hot, tkyk
+  Kind kind = 3;
+  string description = 4;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_POP = 1;
+    KIND_VENUE = 2;
+    KIND_CLOUD = 3;
+    KIND_EXTERNAL = 4;
+    KIND_STAGING = 5;
+    KIND_LAB = 6;
+  }
+}
+
+// loc: an area inside a Site, as in NetBox.
+// A second building at the venue (venue2 at RK2026) is a top-level Location under venue.
+message Location {
+  Row row = 1;
+  string site_id = 2;
+  string slug = 3; // tra, fo0, lb0, noc
+  string name = 4; // Hall C/メイン
+  string parent_id = 5; // optional
+}
+
+// ---------------------------------------------------------------------------
+// Plan: IPAM (NetBox style)
+//
+// The sheet's `network` names mix three ideas, which the model separates:
+//   function (mgmt, life)                                -> Role
+//   site or building (mgmt2 for venue2, tkyk-mgmt)       -> Site / Location, with VlanGroup for repeated VLAN ids
+//   blocks held at a site (aws, onpremises, pa)          -> Aggregate, or a container Prefix
+// The hosts export carries role, VLAN and scope as separate fields,
+// so its consumers no longer need a combined network name.
+//
+//   Sheet name           Role      Scope                                       Notes
+//   mgmt                 mgmt      VlanGroup venue (vid 1000)
+//   mgmt2                mgmt      VlanGroup venue2 (vid 1000, Location venue2)
+//   tkyk-mgmt            mgmt      Site tkyk
+//   lo                   loopback  none                                        is_pool
+//   link                 p2p       none                                        holds Link prefixes
+//   aws                  cloud     Site apne1                                  under Aggregate 10.33.128.0/18
+//   onpremises, kaigi    none      none                                        container prefixes
+//   pa                   public    none                                        under Aggregate 192.50.220.152/29 etc.
+// ---------------------------------------------------------------------------
+
+// Shared by addresses, prefixes and ranges.
+message IpValue {
+  Family family = 1;
+  string text = 2; // canonical form, with prefix length where relevant
+  string key = 3; // fixed-width hex (8 or 32 chars), for ordering and containment; bytes once DSQL can index bytea
+  int32 prefix_length = 4;
+
+  enum Family {
+    FAMILY_UNSPECIFIED = 0;
+    FAMILY_IPV4 = 1;
+    FAMILY_IPV6 = 2;
+  }
+}
+
+// agg: a top-level block we hold or use.
+// 10.33.0.0/16 (RFC 1918), 2001:df0:8500::/48 (APNIC), 192.50.220.152/29 (PA from transit), 10.33.128.0/18 (AWS).
+message Aggregate {
+  Row row = 1;
+  IpValue prefix = 2;
+  string source = 3; // free text: RFC 1918, APNIC, transit PA, AWS
+  string description = 4;
+}
+
+// role: a function vocabulary shared by prefixes and VLANs.
+message Role {
+  Row row = 1;
+  string slug = 2; // loopback, p2p, mgmt, life, air, usr, cast, public, cloud, nat64-outer, …
+  string name = 3;
+}
+
+// vlg: a scope where VLAN ids are unique.
+message VlanGroup {
+  Row row = 1;
+  string name = 2;
+  oneof scope {
+    string site_id = 3;
+    string location_id = 4;
+  }
+}
+
+// vlan
+message Vlan {
+  Row row = 1;
+  string group_id = 2;
+  int32 vid = 3;
+  string name = 4;
+  string role_id = 5;
+}
+
+// pfx: parents and children come from containment, as in NetBox.
+// Carrier NGN prefixes are active prefixes with a note.
+message Prefix {
+  Row row = 1;
+  IpValue prefix = 2;
+  Status status = 3;
+  string role_id = 4;
+  string vlan_id = 5;
+  string site_id = 6; // optional
+  string location_id = 7; // optional
+  bool is_pool = 8;
+  string gateway = 9; // full address; ::a accepted as input shorthand
+  int32 dhcp_subnet_id = 10; // Kea subnet id, derived from the prefix or VLAN id; output only, not stored
+  string description = 11;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_CONTAINER = 1;
+    STATUS_ACTIVE = 2;
+    STATUS_RESERVED = 3;
+    STATUS_DEPRECATED = 4;
+  }
+}
+
+// iprange: informational only, since Kea pools stay in rubykaigi-net.
+message IpRange {
+  Row row = 1;
+  IpValue start = 2;
+  IpValue end = 3;
+  string role = 4; // dhcp_pool, …
+  string description = 5;
+}
+
+// ip: the containing prefix is derived, replacing the sheet's free-text CIDR column.
+// configured_at, verified_at and remark replace the sheet's update and configured? columns.
+message IpAddress {
+  Row row = 1;
+  IpValue address = 2; // with prefix length, as NetBox stores it
+  Status status = 3;
+  Role role = 4; // optional
+  string interface_id = 5; // optional
+  string dns_name = 6; // override; normally derived
+  Dns dns = 7;
+  DhcpIdentifierType dhcp_identifier_type = 8;
+  string dhcp_identifier = 9; // exported as a Kea reservation
+  google.protobuf.Timestamp configured_at = 10;
+  google.protobuf.Timestamp verified_at = 11;
+  string remark = 12;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_RESERVED = 2;
+    STATUS_DEPRECATED = 3;
+    STATUS_DHCP = 4;
+  }
+
+  enum Role {
+    ROLE_UNSPECIFIED = 0;
+    ROLE_LOOPBACK = 1;
+    ROLE_ANYCAST = 2;
+    ROLE_VIP = 3;
+  }
+
+  enum Dns {
+    DNS_UNSPECIFIED = 0;
+    DNS_EMIT = 1;
+    DNS_SKIP = 2;
+  }
+
+  enum DhcpIdentifierType {
+    DHCP_IDENTIFIER_TYPE_UNSPECIFIED = 0;
+    DHCP_IDENTIFIER_TYPE_HW_ADDRESS = 1;
+    DHCP_IDENTIFIER_TYPE_DUID = 2;
+    DHCP_IDENTIFIER_TYPE_CLIENT_ID = 3;
+  }
+}
+
+// link: a first-class point-to-point link built on the address model.
+// Creating one allocates the next free pair of prefixes with role p2p and creates the four IpAddresses.
+// A pair is a /31 and the matching ca22:<N>::/124 by default, or a /30 and a /127 when requested.
+// The A end gets the first usable address of each (even v4 or .1 of a /30; ::a, or ::0 of a /127), the Z end the second.
+// Addresses stay directly editable, and the topology check warns when a Link and its addresses disagree.
+message Link {
+  Row row = 1;
+  string a_interface_id = 2;
+  string z_interface_id = 3;
+  string prefix4_id = 4; // its length tells /31 from /30
+  string prefix6_id = 5; // its length tells /124 from /127
+  string description = 6;
+}
+
+// asn: devices link to their ASN.
+message Asn {
+  Row row = 1;
+  int64 number = 2;
+  string name = 3; // er.venue
+}
+
+// ---------------------------------------------------------------------------
+// Plan: devices
+// ---------------------------------------------------------------------------
+
+// dev: a logical node, the `name` in the sheet's addresses tab and the `ID` in devices.
+// The FQDN is derived: <name>.<site>.rubykaigi.net.
+// The fill is normally empty while planning and is set at the venue when the device is mounted, either by
+//   scanning or typing the device name and the asset tag, in either order, or by
+//   the print order of a LabelBatch: the next unused label names the device, so staff stick it on and scan only the asset tag.
+message Device {
+  Row row = 1;
+  string site_id = 2;
+  string name = 3; // unique with site: tun-01 exists at hnd, nrt, itm and venue
+  string location_id = 4; // optional
+  string role = 5; // derived from the name prefix for now: br, er, cs, as, es, ap, tun, nat, wire, wlc, …
+  Platform platform = 6;
+  Category required_category = 7; // for stock planning
+  oneof fill {
+    string asset_id = 8; // a tagged Fleet asset, owned or borrowed
+    string stock_line_id = 9; // an untagged item
+  }
+  google.protobuf.Timestamp mounted_at = 15;
+  Actor mounted_by = 16;
+  Status status = 10; // replaces the cloudprober exclusion list, "not deployed" notes and 回収済
+  string primary_ip4_id = 11; // encouraged, as in NetBox
+  string primary_ip6_id = 12;
+  string asn_id = 13;
+  string description = 14;
+
+  enum Platform {
+    PLATFORM_UNSPECIFIED = 0;
+    PLATFORM_JUNOS = 1;
+    PLATFORM_NEC_IX = 2;
+    PLATFORM_IOS = 3;
+    PLATFORM_AIREOS = 4;
+    PLATFORM_LINUX = 5;
+    PLATFORM_AWS = 6;
+    PLATFORM_OTHER = 7;
+  }
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_PLANNED = 1;
+    STATUS_DEPLOYED = 2;
+    STATUS_NOT_DEPLOYED = 3;
+    STATUS_COLLECTED = 4;
+  }
+}
+
+// lble: one bulk Device/AP label file (CSV or XLSX), loaded into the Tepra app as a whole.
+// Row numbers are fixed once exported, so a range typed later always means the same labels.
+message LabelExport {
+  Row row = 1;
+  Kind kind = 2;
+  string format = 3; // csv, xlsx
+  google.protobuf.Timestamp exported_at = 4;
+  Actor exported_by = 5;
+  int64 seq = 6; // branch version it read
+  repeated ExportRow rows = 7;
+
+  message ExportRow {
+    int32 row_number = 1;
+    string device_id = 2;
+  }
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_DEVICE = 1;
+    KIND_AP = 2;
+  }
+}
+
+// lblb: one printed range of a LabelExport, e.g. rows 12–40, entered after printing.
+// Assigning by batch takes the row at cursor, fills its Device with the scanned asset, and advances the cursor.
+// Several staff can work from different batches (rolls) at once, each with its own cursor.
+// Overlapping ranges (a reprint) raise a warning, since a device would have two labels.
+message LabelBatch {
+  Row row = 1;
+  string label_export_id = 2;
+  int32 first_row = 3;
+  int32 last_row = 4;
+  Actor printed_by = 5;
+  google.protobuf.Timestamp printed_at = 6;
+  int32 cursor = 7; // row of the next unused label
+  repeated int32 skipped_rows = 8; // damaged or lost labels; the cursor moves past them and their Devices stay unfilled
+}
+
+// iface
+message Interface {
+  Row row = 1;
+  string device_id = 2;
+  string name = 3; // lo, ge-0/0/5.10, irb.1000, me0, venue2-vlan1000
+  string mac = 4; // optional; 12 hex chars, bytes once DSQL can index bytea
+  string description = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Plan: cables
+//
+// The spreadsheet is the single source of truth for cable planning and measuring.
+// The app imports it repeatedly: sheet-owned fields are overwritten on every import,
+// and app-owned fields are kept, matched by cable ID.
+// Cables are consumed per Episode, so all cable data lives in the Plan.
+// They travel together in the shipping cargo (JITBOX) in temporary boxes, so containers are not tracked for them.
+//
+// Cable ID grammar: <kind>:<a>@<a-location>/<z>[~<member>] [<FROM>-<TO>]
+//   e.g. E:ngn1@noc/xs1, C:as@are/trbE~a A-TRBFO, C:as@are/trbE~a TRBFO-TRBFI, C:as@are/trbE~a TRBFI-Z
+// - kind: E External, B Backbone, C Core, A Access.
+// - @<a-location>: where the A end sits (wlc@noc is the WLC at location noc).
+// - Each end is a short device reference:
+//   - <role><n> names a device: tun1 is tun-01, xs1 is xs-01.
+//   - A bare role names the only device of that role: wlc, as.
+//   - <location><role letter>[<n>] names a device by location and role: trbE is the Edge switch at trb.
+//     When a location has several, they are numbered: traE1, traE2 are es-tra-01 and es-tra-02.
+// - ~a, ~b, …: members of a redundant group.
+// - <FROM>-<TO> names one piece of a run that crosses waypoints. A and Z stand for the A-side and Z-side terminations.
+//   Without it, the row is the whole run.
+// - A 重畳区間 (overlapping section) row is keyed by a waypoint pair alone (TRBFO-TRBFI).
+//   It holds the length shared by every run spanning that pair, and those runs' rows for the pair look it up.
+// - The parser needs a spike against the full sheet.
+//   Ends that do not resolve to a Device stay as text and raise a topology warning.
+// ---------------------------------------------------------------------------
+
+// wpt: a venue spot where JJs (female-female couplers) are placed, usually where cables cross between rooms.
+// JJs keep any single cable short enough to deploy quickly and to replace after a fault.
+message Waypoint {
+  Row row = 1;
+  string site_id = 2;
+  string location_id = 3; // set in a named Location (a track hall, a foyer or lobby with a code); empty in backstage hallways
+  string code = 4; // TRBFO, SPOFI
+  string description = 5; // where it is, when there is no Location
+}
+
+// cable: one end-to-end run, the cable ID without its <FROM>-<TO> part.
+// Its waypoints and JJ count (one per waypoint crossed) are derived from its segments.
+message Cable {
+  Row row = 1;
+
+  // Sheet-owned: overwritten on every import.
+  string cable_id = 2; // unique per branch: C:as@are/trbE~a
+  Kind kind = 3;
+  string a_end = 4;
+  string location_id = 5; // A end's location
+  string z_end = 6;
+  int32 redundancy_member = 7; // 1 for ~a, 2 for ~b, …; 0 when not redundant
+  string comment = 8;
+
+  // Resolved from the parsed ends when possible, feeding the topology check.
+  string a_interface_id = 9;
+  string z_interface_id = 10;
+
+  // App-owned: kept across imports.
+  bool installed = 11;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_EXTERNAL = 1; // E
+    KIND_BACKBONE = 2; // B
+    KIND_CORE = 3; // C
+    KIND_ACCESS = 4; // A
+  }
+}
+
+// cableseg: one row of the sheet's cables tab, one physical piece of a run: the unit that is ordered, labelled and packed.
+// 重畳区間 rows are not segments; they only supply the length of the rows that look them up.
+message CableSegment {
+  Row row = 1;
+  string cable_id = 2;
+
+  // Sheet-owned: overwritten on every import.
+  string row_key = 3; // the full cable ID cell, unique per branch: C:as@are/trbE~a A-TRBFO
+  string from_waypoint_id = 4; // empty for the A-side termination
+  string to_waypoint_id = 5; // empty for the Z-side termination
+  bool shared = 6; // length comes from a 重畳区間 row
+  double required_length_m = 7; // 適正
+  double length_m = 8; // 長さ
+  CableMedium medium = 9;
+  CableColor color = 10;
+  int32 sheet_coupler = 11; // the row's JJ count, checked against the derived count
+
+  // App-owned: kept across imports, matched by row_key.
+  Status status = 12;
+  string order_line_id = 13;
+  bool labeled = 14;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_PLANNED = 1;
+    STATUS_ORDERED = 2;
+    STATUS_RECEIVED = 3;
+    STATUS_PREPARED = 4; // labelled and ready to ship
+    STATUS_CONFIRMED = 5; // unpacked and checked at the venue
+    STATUS_INSTALLED = 6;
+  }
+}
+
+enum CableMedium {
+  CABLE_MEDIUM_UNSPECIFIED = 0;
+  CABLE_MEDIUM_UTP_FLEX_THIN = 1; // より線 細径
+  CABLE_MEDIUM_UTP_FLEX = 2; // より線 通常径
+  CABLE_MEDIUM_UTP_SOLID = 3; // 単線
+  CABLE_MEDIUM_OM3 = 4;
+  CABLE_MEDIUM_OTHER = 5;
+}
+
+enum CableColor {
+  CABLE_COLOR_UNSPECIFIED = 0; // no preference
+  CABLE_COLOR_LIGHT_BLUE = 1; // 薄青
+  CABLE_COLOR_BLUE = 2; // 青 (standard)
+  CABLE_COLOR_GREEN = 3; // 緑
+  CABLE_COLOR_LIGHT_GREEN = 4; // 若草
+  CABLE_COLOR_YELLOW = 5; // 黄
+  CABLE_COLOR_LIGHT_YELLOW = 6; // 薄黄
+  CABLE_COLOR_BEIGE = 7; // ベージュ
+  CABLE_COLOR_ORANGE = 8; // 橙
+  CABLE_COLOR_BROWN = 9; // 茶
+  CABLE_COLOR_RED = 10; // 赤
+  CABLE_COLOR_PURPLE = 11; // 紫
+  CABLE_COLOR_PINK = 12; // ピンク
+  CABLE_COLOR_WHITE = 13; // 白
+  CABLE_COLOR_GRAY = 14; // 灰
+  CABLE_COLOR_BLACK = 15; // 黒
+}
+
+// cableo: an order to a vendor.
+// Exports cover order forms (cables-order, rasterised), JJ orders (jj-order) and labels.
+message CableOrder {
+  Row row = 1;
+  string vendor = 2;
+  google.protobuf.Timestamp ordered_at = 3;
+  string status = 4;
+}
+
+// cableol: segments grouped by medium, colour and length.
+message CableOrderLine {
+  Row row = 1;
+  string order_id = 2;
+  CableMedium medium = 3;
+  CableColor color = 4;
+  double length_m = 5;
+  int32 quantity = 6;
+  int32 received_quantity = 7; // 納品チェック
+}
+
+// ---------------------------------------------------------------------------
+// Fleet
+// ---------------------------------------------------------------------------
+
+// A fixed vocabulary; static records (frozen_record style) carry display labels and attributes such as PoE.
+enum Category {
+  CATEGORY_UNSPECIFIED = 0;
+  CATEGORY_L3_1G_ROUTER = 1; // L3: 1G Router
+  CATEGORY_L2_1G = 2; // L2: 1G
+  CATEGORY_L2_1G_POE_PLUS = 3; // L2: 1G PoE+
+  CATEGORY_L2_100M_POE_PLUS = 4; // L2: 100M PoE+
+  CATEGORY_WIFI_AP = 5; // Wi-Fi AP
+  CATEGORY_WLC = 6;
+  CATEGORY_TRANSCEIVER = 7;
+  CATEGORY_POWER = 8;
+  CATEGORY_TOOL = 9;
+  CATEGORY_CONSUMABLE = 10;
+  CATEGORY_OTHER = 11;
+}
+
+// prod: a model, SKU or consumable type.
+message Product {
+  Row row = 1;
+  string name = 2; // AIR-AP2802I-Q-K9, SRX300, 軍手, 結束バンド
+  string sku = 3;
+  string vendor = 4;
+  Category category = 5;
+  Tracking tracking = 6;
+  string tag_kind = 7; // expected tag kind such as aph, for the tag/product warning
+  Device.Platform platform = 8; // default for devices
+
+  enum Tracking {
+    TRACKING_UNSPECIFIED = 0;
+    TRACKING_TAGGED = 1;
+    TRACKING_COUNTED = 2;
+  }
+}
+
+// a: one tagged item. Its tag is its identity for life.
+// A borrowed item can carry our own tag, its external_id, or both; at least one is required.
+// Lookups and labels prefer our tag when it exists.
+// Our tags on borrowed items use the owner prefix ext- with the usual grammar (ext-srnp26a1).
+// A tag never changes, so an item bought later from its lender keeps its ext- tag and switches to owned.
+// Whereabouts is where it was last seen, updated by scans, not an assignment: any asset may be packed in any box.
+message Asset {
+  Row row = 1;
+  string tag = 2; // rk-srnp19a1, parsed into the fields below
+  string owner = 3; // rk, kor, ext
+  string kind = 4;
+  int32 year = 5;
+  string batch = 6;
+  int32 number = 7;
+  string part = 8; // psu in rk-wlc19a1+psu
+  string parent_id = 9; // for accessories such as +psu
+  string product_id = 10;
+  string serial = 11;
+  Ownership ownership = 12;
+  string lender = 13; // Cookpad, …
+  string external_id = 14; // the lender's asset ID
+  string system = 15; // free text, refreshed by automation through the API later
+  string license = 16; // ditto
+  string purchase_order_id = 17;
+  google.type.Date purchased_on = 25; // the sheet's purchased_at; set without a PO too, empty for borrowed items
+  int64 price = 18;
+  int64 tax = 19;
+  Status status = 20;
+  oneof whereabouts {
+    string container_id = 21;
+    string depot_id = 22;
+  }
+  string location_note = 23; // a person, an office desk
+  string comment = 24;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_AVAILABLE = 1;
+    STATUS_DEPLOYED = 2;
+    STATUS_LOST = 3;
+    STATUS_BROKEN = 4;
+    STATUS_DISPOSED = 5;
+  }
+}
+
+enum Ownership {
+  OWNERSHIP_UNSPECIFIED = 0;
+  OWNERSHIP_OWNED = 1;
+  OWNERSHIP_BORROWED = 2;
+}
+
+// mac: an AP's BSSID range is a masked base; 70:b3:17:c7:6a:4? is a /44.
+message AssetMac {
+  Row row = 1;
+  string asset_id = 2;
+  Kind kind = 3;
+  string mac = 4; // 12 hex chars; bytes once DSQL can index bytea
+  int32 prefix_length = 5;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_ETHERNET = 1;
+    KIND_BSSID = 2;
+    KIND_OTHER = 3;
+  }
+}
+
+// po
+message PurchaseOrder {
+  Row row = 1;
+  string handle = 2; // rk-po19a
+  google.type.Date purchased_on = 3;
+  string vendor = 4;
+  string owner = 5;
+  string note = 6;
+}
+
+// depot: somewhere things are kept or sent.
+// Initial depots: Stockmamoru (warehouse), ivry office (prep), sorah's home.
+message Depot {
+  Row row = 1;
+  string name = 2;
+  Kind kind = 3;
+  string address = 4;
+  string note = 5;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_WAREHOUSE = 1;
+    KIND_OFFICE = 2;
+    KIND_VENUE = 3;
+    KIND_HOME = 4;
+    KIND_OTHER = 5;
+  }
+}
+
+// box: a container that travels. Containers do not nest.
+// A disposed or lost container keeps its row and tag, so old scans and shipments still resolve and the tag is never reused.
+// It can no longer be packed or added to a Shipment.
+// Disposing a container that still holds assets or stock lines raises a warning.
+message Container {
+  Row row = 1;
+  string tag = 2; // rkc-21b, rkb-25c, rks-…, kor-…
+  Kind kind = 3;
+  int32 width_cm = 4;
+  int32 depth_cm = 5;
+  int32 height_cm = 6;
+  string description = 7; // 個品備考
+  string depot_id = 8; // current
+  Status status = 9;
+  google.protobuf.Timestamp retired_at = 10;
+  bool manifest_exclusive = 11; // holds only its manifest items ("apm only"); anything else counted in it raises a warning
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_FOLDING_CONTAINER = 1; // rkc
+    KIND_CARDBOARD = 2; // rkb
+    KIND_SUITCASE = 3; // rks
+    KIND_OTHER = 4;
+  }
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_ACTIVE = 1;
+    STATUS_LOST = 2;
+    STATUS_DISPOSED = 3;
+  }
+}
+
+// man: the paper in each box, a rough expectation of what goes in it ("8 apm, 4 aph").
+// Manifests never name individual assets.
+message ContainerManifest {
+  Row row = 1;
+  string container_id = 2;
+  oneof item {
+    string product_id = 3;
+    Category category = 4;
+  }
+  int32 expected_quantity = 5;
+  string note = 6;
+}
+
+// stock: a counted holding, for untagged items.
+// The quantity is the last observed count, not a balance. Cheap items get used by many staff during an Episode
+// and rarely return to the same box, so they cannot be tracked as moves in and out.
+// A count scan, or a direct edit, replaces the quantity. Past counts remain in the scans and the changelog.
+message StockLine {
+  Row row = 1;
+  oneof item {
+    string product_id = 2;
+    string item_text = 3; // until a Product exists
+  }
+  oneof holder {
+    string container_id = 4;
+    string depot_id = 5;
+  }
+  int32 quantity = 6;
+  string quantity_note = 7; // rough counts: いっぱい, 残り少し
+  google.protobuf.Timestamp observed_at = 8;
+  string observed_in_session_id = 9; // optional
+  Ownership ownership = 10;
+  string lender = 11;
+  string episode_id = 12; // a loan for one Episode
+}
+
+// ship: containers moving between Depots. The usual route is warehouse -> office (prep) -> venue -> warehouse.
+// What went out is recorded as ShipmentItems when the shipment is marked shipped, container by container:
+//   - If the container was scanned in this shipment's pack session (or the venue check session for a return),
+//     its items come from those scans (SOURCE_SCAN).
+//   - Otherwise it travelled unopened, and its items are inherited from its current contents:
+//     assets last seen in it and its stock lines (SOURCE_INHERITED).
+// Warehouse -> office -> venue usually ships containers unopened, so both legs normally inherit.
+// Only boxes opened and repacked at the office need a pack session.
+// An outbound shipment from the warehouse requests a subset of containers (とりだす). Kaigi on Rails takes fewer than RubyKaigi.
+// Validation against the Episode's Plan uses Device fills only, and anything missing is a warning:
+//   - per product and category, the devices in the requested containers must cover the Plan's required_category counts and untagged fills
+//   - an asset already filling a Device (rare before the venue, e.g. a pre-configured router)
+//     must be in a requested container, or already at the destination
+// ContainerManifests are for box checks, not shipment validation.
+// The warehouse request form (入庫申請 and its outbound counterpart) is an export.
+message Shipment {
+  Row row = 1;
+  string from_depot_id = 2;
+  string to_depot_id = 3;
+  string episode_id = 4; // label
+  repeated string container_ids = 5;
+  google.protobuf.Timestamp requested_at = 6;
+  google.protobuf.Timestamp shipped_at = 7;
+  google.protobuf.Timestamp received_at = 8;
+  Kind kind = 10;
+  Status status = 9;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_CARRIER = 1;
+    KIND_HAND_CARRY = 2; // staff bringing items themselves; may have no containers
+  }
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_REQUESTED = 1;
+    STATUS_PACKING = 2;
+    STATUS_SHIPPED = 3;
+    STATUS_RECEIVED = 4;
+  }
+}
+
+// shipi: insert-only record of one thing that left in a shipment.
+message ShipmentItem {
+  Row row = 1;
+  string shipment_id = 2;
+  string container_id = 3; // empty for hand-carried items
+  oneof subject {
+    string asset_id = 4;
+    string stock_line_id = 5;
+  }
+  int32 quantity = 6; // for stock lines
+  Source source = 8;
+  string source_scan_id = 7; // set for SOURCE_SCAN
+
+  enum Source {
+    SOURCE_UNSPECIFIED = 0;
+    SOURCE_SCAN = 1; // the container was scanned in the packing session
+    SOURCE_INHERITED = 2; // the container travelled unopened; taken from its current contents
+  }
+}
+
+// inv: one counting run.
+// Several scanners work in one session at once (the old thread-1 / thread-2 columns), each a phone or a scanner,
+// possibly offline for a while. Each joins the session as an InventorySessionScanner.
+// "Not scanned at all" means not scanned by any scanner of the session.
+// Findings are computed from the union of all scanners' scans, once every joined scanner has finished and uploaded.
+// Closing earlier is allowed but raises a warning naming the unfinished scanners.
+// The expected set is every tagged asset that should be at the depot, built from shipments:
+//   - assets in ShipmentItems of shipments that arrived here (to_depot, same Episode for a venue), hand-carried included
+//   - minus assets in ShipmentItems of shipments that already left here
+//   - for a venue check, plus assets filling the Episode's Devices that no shipment recorded (bought or borrowed on site)
+//   - for depots without shipments in play (an audit at the warehouse), assets last seen here
+message InventorySession {
+  Row row = 1;
+  Kind kind = 2;
+  string depot_id = 3;
+  string episode_id = 4; // label
+  string shipment_id = 8; // optional: the shipment this session packs or receives
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp closed_at = 6;
+  string note = 7;
+  repeated Warning warnings = 9; // computed at close, stored, recomputable
+
+  message Warning {
+    Kind kind = 1;
+    string container_id = 2;
+    string asset_id = 3;
+    string stock_line_id = 4;
+    string product_id = 5;
+    Category category = 6;
+    int32 expected = 7;
+    int32 observed = 8;
+
+    enum Kind {
+      KIND_UNSPECIFIED = 0;
+      KIND_ASSET_MISSING = 5; // expected here but not scanned at all; at a venue check, something left behind (the main finding)
+      KIND_CONTAINER_UNCHECKED = 1; // a container at this depot with no scans
+      KIND_MANIFEST_SHORTFALL = 2; // per container, by product or category
+      KIND_MANIFEST_EXCESS = 3;
+      KIND_OUTSIDE_EXCLUSIVE_MANIFEST = 4;
+      KIND_STOCK_UNCOUNTED = 6; // a stock line in a container at this depot
+      KIND_ASSET_IN_MULTIPLE_CONTAINERS = 8; // by different scanners; the latest scanned_at wins, but someone should look
+      KIND_SCANNER_UNFINISHED = 9; // joined but not finished or not fully uploaded at close
+      KIND_NOT_PACKED = 7; // seen loose at the venue, never scanned into a container before close; cannot ship
+    }
+  }
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_PACK = 1; // prep at the office
+    KIND_CHECK = 2; // at the venue, before shipping back
+    KIND_RECEIVE = 3;
+    KIND_AUDIT = 4;
+  }
+}
+
+// scanner: one device taking part in a session.
+// It is finished when finished_at is set and pending_scans is 0.
+message InventorySessionScanner {
+  Row row = 1;
+  string session_id = 2;
+  string device_id = 3; // stable per phone or scanner
+  Actor actor = 4;
+  google.protobuf.Timestamp joined_at = 5;
+  google.protobuf.Timestamp finished_at = 6; // the person says they are done
+  google.protobuf.Timestamp last_upload_at = 7;
+  int32 pending_scans = 8; // reported by the device at its last upload
+}
+
+// scan: insert-only. A sighting only.
+// Packing scans pair a container with an item, since nothing ships outside a container.
+// It updates the asset's whereabouts, or the stock line's quantity, in the same transaction.
+// An untagged item counted in a box with no stock line for it creates one.
+// The id is generated on the device, so a retried upload never duplicates it; the same asset scanned by two scanners is fine.
+// Missing items are never scanned. They surface as session warnings at close, replacing the old ある? cross-check.
+message InventoryScan {
+  Row row = 1;
+  string session_id = 2;
+  string container_id = 3; // empty only for a loose sighting at the venue inventory; whereabouts becomes the venue depot
+  oneof subject {
+    string asset_id = 4;
+    string stock_line_id = 5;
+  }
+  int32 quantity = 6; // observed count, for stock lines
+  string scanner_id = 9;
+  Actor scanned_by = 7;
+  google.protobuf.Timestamp scanned_at = 8; // device clock; derived whereabouts follow the latest
+}

@@ -2,7 +2,7 @@
 
 Status: draft, round 5. Ready to be turned into specs.
 
-This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e.g. Kaigi on Rails 2026) and the standalone asset list ([rubykaigi-network-assets](https://docs.google.com/spreadsheets/d/1u27Eoip0GkvMGRFlqIeH5UZoMCDoXeYDKQ0GOxe7OJ0/edit)). Phase 1 covers IP addresses, subnets, assets, devices and inventory. Cables follow, after planning in the sheet (see [Cables](#cables)).
+This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e.g. Kaigi on Rails 2026) and the standalone asset list ([rubykaigi-network-assets](https://docs.google.com/spreadsheets/d/1u27Eoip0GkvMGRFlqIeH5UZoMCDoXeYDKQ0GOxe7OJ0/edit)). Phase 1 covers IP addresses, subnets, assets, devices and inventory. Cables follow, after planning in the sheet (see the cables section of [`entities-tentative.proto`](entities-tentative.proto)).
 
 ## Requirements
 
@@ -36,8 +36,8 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 | `ap-annotate`, `assets-ap-annotate` | BSSID (with `?` wildcard) → tag / location | AssetMac (`bssid`) + export |
 | `device-tepra`, `ap-tepra` | ID, SKU, label parts | export |
 | `入庫申請`, `cardboard-measurement` | box tag, note, W/D/H, count | Container, Shipment export |
-| `inventory-check-*`, `kor26出庫` | box, asset URL, code (URL stripped to tag for XLOOKUP), ある? (cross-check) | InventorySession, InventoryScan |
-| `cables`, `cables-sum`, `cables-order*`, `jj-order`, `cables-tepra*` | cable plan, measured length, medium, colour; order sums; JJ order; labels | Cable (imported), CableOrder + exports |
+| `inventory-check-*`, `kor26出庫` | box, asset URL, code (URL stripped to tag for XLOOKUP), ある? (cross-check) | InventorySession, InventorySessionScanner, InventoryScan |
+| `cables`, `cables-sum`, `cables-order*`, `jj-order`, `cables-tepra*` | cable plan, measured length, medium, colour; order sums; JJ order; labels | Cable and CableSegment (imported), CableOrder + exports |
 | `cost` | amount, desc | out of scope |
 
 ### Asset sheet (rubykaigi-network-assets)
@@ -58,10 +58,10 @@ This app replaces the per-occurrence NOC spreadsheet ("<name> - Network Data", e
 
 | Dataset | Timeline | Entities |
 |---|---|---|
-| **Fleet** (one, global) | continuous on main; frozen snapshots | Product, Asset, AssetMac, PurchaseOrder, Place, Container, ContainerManifest, StockLine, Shipment, InventorySession, InventoryScan |
-| **Plan** (one main branch per Episode) | forked from any earlier Plan branch; frozen when the Episode closes | Site, Location, Role, Aggregate, VlanGroup, Vlan, Prefix, IpRange, IpAddress, Device, Interface, Link, Asn, Waypoint, Cable, CableOrder |
+| **Fleet** (one, global) | continuous on main; frozen snapshots | Product, Asset, AssetMac, PurchaseOrder, Depot, Container, ContainerManifest, StockLine, Shipment, ShipmentItem, InventorySession, InventorySessionScanner, InventoryScan |
+| **Plan** (one main branch per Episode) | forked from any earlier Plan branch; frozen when the Episode closes | Site, Location, Role, Aggregate, VlanGroup, Vlan, Prefix, IpRange, IpAddress, Device, Interface, Link, Asn, LabelExport, LabelBatch, Waypoint, Cable, CableSegment, CableOrder |
 
-- The only cross-dataset reference is Plan → Fleet: a Device's fill (an Asset or a StockLine) and a Cable's container once packed. Fleet never points at a Plan, apart from an optional Episode label on a Shipment or InventorySession.
+- The only cross-dataset reference is Plan → Fleet: a Device's fill (an Asset or a StockLine). Fleet never points at a Plan, apart from an optional Episode label on a Shipment or InventorySession.
 - Each Plan branch belongs to one Episode, so per-Episode facts live directly on Plan rows. `es-tra-01`'s location, asset and deployed state are columns of its Device row in `rk26kor`. Forking `rk27` from `rk26` copies the Devices, and the fills are then edited.
 
 ```mermaid
@@ -84,35 +84,43 @@ erDiagram
   Prefix ||--o{ IpRange : "contains (derived)"
   Prefix ||--o{ IpAddress : "contains (derived)"
   Device ||--o{ Interface : has
+  LabelExport }o--o{ Device : "rows (ordered)"
+  LabelExport ||--o{ LabelBatch : "printed range"
   Interface ||--o{ IpAddress : assigned
   Device |o--o| IpAddress : "primary ip4 / ip6"
   Link }o--|| Interface : "a / z end"
   Link |o--|| Prefix : "prefix4 / prefix6"
   Cable }o--o| Interface : "a / z end"
   Cable }o--o| Location : at
-  Cable }o--o| Waypoint : "via"
+  CableSegment }o--o| Waypoint : "from / to"
   CableOrder ||--o{ CableOrderLine : has
-  CableOrderLine |o--o{ Cable : orders
+  Cable ||--|{ CableSegment : "made of"
+  CableOrderLine |o--o{ CableSegment : orders
   Device }o--o| Asn : speaks
   Device }o--o| Asset : "fill (cross-dataset)"
   Device }o--o| StockLine : "fill (cross-dataset)"
-  Cable }o--o| Container : "packed in (cross-dataset)"
   Product ||--o{ Asset : "model of"
   PurchaseOrder |o--o{ Asset : bought
   Asset ||--o{ AssetMac : has
   Asset ||--o{ Asset : "accessory (+part)"
-  Place ||--o{ Container : holds
-  Place |o--o{ Asset : "kept at"
+  Depot ||--o{ Container : holds
+  Depot |o--o{ Asset : "kept at"
   Container |o--o{ Asset : "packed in"
   Container ||--o{ ContainerManifest : expects
   ContainerManifest }o--o| Product : "expects"
   Product |o--o{ StockLine : counts
   Container |o--o{ StockLine : holds
-  Place |o--o{ StockLine : holds
+  Depot |o--o{ StockLine : holds
   Shipment }o--o{ Container : moves
-  Shipment }o--|| Place : "from / to"
-  InventorySession }o--o| Place : at
-  InventorySession ||--o{ InventoryScan : records
+  Shipment }o--|| Depot : "from / to"
+  Shipment ||--o{ ShipmentItem : recorded
+  ShipmentItem }o--o| Container : in
+  ShipmentItem }o--o| Asset : ships
+  ShipmentItem }o--o| StockLine : ships
+  InventorySession }o--o| Depot : at
+  InventorySession }o--o| Shipment : checks
+  InventorySession ||--o{ InventorySessionScanner : joins
+  InventorySessionScanner ||--o{ InventoryScan : records
   InventoryScan }o--o| Container : in
   InventoryScan }o--o| Asset : sees
   InventoryScan }o--o| StockLine : counts
@@ -122,14 +130,8 @@ erDiagram
 
 ### Concepts
 
-- **Episode** (`ep`): `slug` (unique: `rk26`, `rk26kor`), `name`, `organizer` (rk/kor), `starts_on`, `ends_on`, `venue_name`, `status` (`planning` | `setup` | `live` | `teardown` | `closed`).
-  - `plan_branch`: the Episode's main Plan branch.
-  - `fleet_branch`: the Fleet branch that fills resolve against. This is Fleet main while the Episode is open, and the Fleet snapshot taken at close.
-  - The slug doubles as the `#rk26` interface-description tag.
-- **Branch** (`br`): one line of history of one dataset.
-  - `dataset` (`fleet` | `plan`), `episode` (Plan branches only), `name` (`main`, or a snapshot label)
-  - `parent`, `forked_at_seq` (null for a root)
-  - `head_seq` (see [Changelog](#changelog)), `frozen`, `state` (`preparing` | `ready`)
+- **Episode** (`ep`): one occurrence, such as `rk26` or `rk26kor`. It points at its main Plan branch (`plan_branch`) and at the Fleet branch its fills resolve against (`fleet_branch`): Fleet main while the Episode is open, and the Fleet snapshot taken at close.
+- **Branch** (`br`): one line of history of one dataset, with a `parent` and a `head_seq` (see [Changelog](#changelog)).
 - **Snapshot**: a frozen branch. It keeps its own rows, so reading it never replays history.
 
 Operations:
@@ -149,9 +151,11 @@ Forks and snapshots copy rows eagerly. The data is small (about 460 addresses, a
 - Every branched table has a UUID primary key `id` (a TypeID in the API), unique per row and per branch, plus `branch_id` and `lineage`.
 - `lineage` stays the same when a row is copied into a fork, and is unique per branch.
 - References inside a branch are ordinary foreign keys on `id`. A fork rewrites them through a lineage map while copying. Single-column keys keep Rails and `typeid_rails` simple.
-- Cross-dataset references (Device → Asset) store the target's `lineage` and resolve within the Episode's `fleet_branch`.
-- Branch diffs, "this device in rk25", and cherry-picks join on `lineage`. The API exposes it.
-- `lineage` is the `id` of the row's first incarnation: a UUID, exposed as a TypeID with the entity's prefix. Clients generate it together with `id` when they create a row. That matters offline: a scanner at the venue can register a new asset and assign it to a Device before syncing, and the cross-dataset reference needs the asset's lineage at once. A server-assigned number would not exist yet.
+- Cross-dataset references (a Device's fill) are also plain `id`s, pointing into the Episode's `fleet_branch`. They are remapped through lineage whenever that branch changes:
+  - closing an Episode rewrites its fills from Fleet main to the new snapshot, in the same job, before the Plan branch freezes
+  - forking a Plan branch rewrites fills to Fleet main; a fill whose asset or stock line is gone from main is cleared with a warning
+- `lineage` is used only to follow one item across branches and history: remapping on copy, branch diffs, "this device in rk25", and cherry-picks. It is never a foreign key. The API exposes it.
+- `lineage` is the `id` of the row's first incarnation: a UUID, exposed as a TypeID with the entity's prefix. Clients generate `id` (and with it `lineage`) when they create a row. That matters offline: a scanner at the venue can register a new asset and assign it to a Device before syncing, and the fill needs the asset's `id` at once. A server-assigned number would not exist yet.
 - Neither `id` nor `lineage` is meant for people. People refer to natural keys:
   - asset and container tags
   - Episode slug + device FQDN (`rk26kor` / `es-tra-01.venue`)
@@ -163,10 +167,10 @@ Forks and snapshots copy rows eagerly. The data is small (about 460 addresses, a
 
 Every branch has an append-only changelog. It is the sync feed for clients and the audit history.
 
-- **ChangeSet** (`cs`; one per committed transaction): `branch_id`, `seq`, `actor`, `mutation_id`, `committed_at`.
-- **Change** (`c`; one per touched row): `branch_id`, `seq`, `entity_type`, `entity_id`, `op` (`upsert` | `delete`), `data` (full after-image, jsonb; null on delete).
-- **Mutation** (`mut`; journal of client submissions): `id` (client-generated idempotency key), `branch_id`, `actor`, `entity_type`, `entity_id`, `payload` (fields the client set), `base_seq`, `client_time`, `received_at`, `outcome` (`applied` | `partially_superseded` | `rejected`), `applied_seq`, `overwritten` (the values it replaced that someone else had set after `base_seq`).
-- `actor` identifies a human or machine caller: issuer plus subject (a himari user, a GitHub Actions workflow, an AWS IAM role), with a display name.
+- **ChangeSet** (`cs`): one per branch per committed transaction.
+- **Change** (`c`): one per touched row, with its full after-image.
+- **Mutation** (`mut`): the journal of client requests, one per API request, applied or rejected.
+- Their fields are in [`entities-tentative.proto`](entities-tentative.proto).
 
 Every row in the Plan and Fleet diagram also belongs to one Branch (`branch_id`); that is not drawn there.
 
@@ -177,8 +181,7 @@ erDiagram
   Branch |o--o{ Branch : "parent (fork)"
   Branch ||--o{ ChangeSet : logs
   ChangeSet ||--o{ Change : contains
-  Branch ||--o{ Mutation : receives
-  Mutation |o--o| ChangeSet : "applied as"
+  Mutation ||--o{ ChangeSet : "applied as (one per branch)"
   Episode |o..o{ StockLine : "loan label"
   Episode |o..o{ Shipment : label
   Episode |o..o{ InventorySession : label
@@ -187,12 +190,14 @@ erDiagram
 Rules:
 
 - A write transaction increments `branches.head_seq` and uses the new value as its `seq`. Concurrent writers on one branch conflict on that row, so DSQL's OCC orders commits. Every `seq` then appears in commit order with no gaps, and a client that has applied up to N misses nothing by asking for `> N`. DSQL sequences cannot provide this, because they hand out cached blocks with gaps and out of commit order.
-- Conflicts resolve per field, last writer wins, in server commit order. Overwritten values are recorded on the Mutation that overwrote them. The journal keeps every payload ever submitted, so an operator can restore any of them.
+- Conflicts resolve per field, last writer wins, in server commit order. What a write overwrote is the row's previous Change, and the Mutation journal keeps every request ever submitted, rejected ones included, so an operator can restore any of them.
 - Inventory data is insert-only. Scans and shipments are new rows, never updates, so concurrent scanning cannot lose a record. Derived state (an asset's container, a stock line's last observed count) is updated in the same transaction.
+- Derived inventory state is the exception to commit-order last-writer-wins: it follows the scan with the latest `scanned_at`. A scanner that was offline uploads its scans late, and an older sighting must not override a newer one.
 - Entity tables hold current state plus `updated_seq`. Reading current state never needs the changelog.
 - Client bootstrap: fetch all rows of one Plan branch and its Fleet branch with their `head_seq`, then pull or stream Changes after it. Frozen branches never change, so their bootstrap payloads can be cached on S3/CloudFront. Mobile clients keep only the active pair.
 - Deletes appear as `delete` Changes and remove the row from the entity table.
 - A fork writes one ChangeSet per copied chunk, so a new branch's log starts with a full image.
+- One transaction may write to several branches, e.g. a pair scan that fills a Plan Device and updates a Fleet Asset. It increments each touched branch's `head_seq` and writes one ChangeSet per branch, so the change is atomic and each branch's log stays gap-free.
 
 ## Validation warnings
 
@@ -202,196 +207,88 @@ Some rules warn instead of rejecting. Warnings are computed per branch and shown
 - asset tag kind not matching its product (`srnp` on a non-PoE switch)
 - device fill not matching the device's required category
 - cable ends or waypoints not matching Interfaces, Links or Locations (topology check)
+- a sheet JJ count that disagrees with the count derived from cable runs and waypoints
 - address outside every Prefix; Prefix outside every Aggregate
 - device without a primary IP
-- shipment that misses something the Plan needs (see [Shipment](#fleet))
+- shipment that misses something the Plan needs (see `Shipment` in the proto)
 - disposed or lost container that still holds assets or stock lines
+- inventory session findings: missing (left-behind) assets, unchecked boxes, manifest shortfalls (see `InventorySession` in the proto)
 
-## Entities: Plan
+## Entities
 
-Natural keys are unique per branch (a unique index on `(branch_id, <key>)`). Every Plan table also carries `branch_id`, `lineage`, `updated_seq`, `created_at` and `updated_at`.
+Entity shapes, vocabularies and per-entity rules live in [`entities-tentative.proto`](entities-tentative.proto), grouped as here: Plan (organisation, IPAM, devices, cables) and Fleet. Every Plan and Fleet table carries `branch_id`, `lineage`, `updated_seq`, `created_at` and `updated_at` (`Row`), and natural keys are unique per branch.
 
-### Organisation
+## Lifecycles
 
-**Site** (`site`): the `<dc>` in `<host>.<dc>.rubykaigi.net`. Fields: `slug` (`hnd`, `nrt`, `itm`, `venue`, `apne1`, `usw2`, `transit`, `hot`, `tkyk`), `kind` (`pop` | `venue` | `cloud` | `external` | `staging` | `lab`), `description`.
+How the Fleet records change over time, from purchase to disposal.
 
-**Location** (`loc`): an area inside a Site, as in NetBox. Fields: `site`, `slug` (`tra`, `fo0`, `lb0`, `noc`), `name` (`Hall C/メイン`), `parent` (optional). A second building at the venue (venue2 at RK2026) is a top-level Location under `venue`.
+### A tagged asset
 
-### IPAM (NetBox style)
+`rk-aph26a3`, a Wi-Fi AP bought in 2026, through one Episode (`rk26kor`).
 
-The sheet's `network` names mix three ideas: function (`mgmt`, `life`), site or building (`mgmt2` for venue2, `tkyk-mgmt` for tkyk), and blocks held at a site (`aws`, `onpremises`, `pa`). The model separates them:
+1. **Purchase.**
+   - A PurchaseOrder (`rk-po26a`) and a Product (`AIR-AP2802I-Q-K9`, tracking `tagged`) exist or are created.
+   - The Asset is created with tag `rk-aph26a3`, serial, Ethernet MAC and BSSID range (AssetMacs), and status `available`.
+   - Its QR label (`nwa.rubykaigi.org/rk-aph26a3`) is printed.
+2. **Storage.** It is scanned into `rkc-26F`, whose manifest says "8 aph". The Asset's whereabouts become `rkc-26F`, and the container sits at the Stockmamoru depot.
+3. **Planning.**
+   - The `rk26kor` Plan has Device `ap-lb0-01.venue` (role `ap`, required category `Wi-Fi AP`) with no fill. Any AP will do.
+   - Shipment validation counts APs in the requested containers against the Wi-Fi AP Devices.
+4. **Warehouse to office.**
+   - A Shipment (warehouse → ivry office) requests `rkc-26F`.
+   - Shipment validation checks that every planned Device fill is in a requested container.
+   - When it ships, `rkc-26F` is unopened, so its ShipmentItems are inherited from its contents: "`rk-aph26a3` in `rkc-26F`".
+   - On arrival, the container's depot becomes the office.
+5. **Office to venue.**
+   - Usually `rkc-26F` goes on unopened, and the office → venue Shipment inherits "`rk-aph26a3` in `rkc-26F`" again.
+   - If the box is opened and repacked at the office, a `pack` session scans `rkc-26F` and its assets together, possibly on several scanners, and those scans become the ShipmentItems instead.
+6. **At the venue.**
+   - Staff mount it and assign it to `ap-lb0-01`: either scan the device label and the `rk-aph26a3` tag as a pair, or stick on the next label of a LabelBatch and scan only the asset tag.
+   - The assignment is one transaction across both datasets:
+     - Plan: the Device gets `asset_id` = this asset, `mounted_at`, and status `deployed`.
+     - Fleet: the asset gets status `deployed` and is last seen loose at the venue depot.
+   - Now that the AP's MAC is known for `ap-lb0-01`, the WLC rename command (`ap name ap-lb0-01 <mac>`) can be generated.
+7. **Venue check before return.**
+   - A `check` session at the venue depot builds its expected set: ShipmentItems that arrived at the venue for `rk26kor`, plus Device fills.
+   - `rk-aph26a3` is scanned loose when taken down, then scanned into whichever box it goes into, say `rkc-26G`. Its whereabouts follow the latest sighting.
+   - If nobody scans it at all, it is reported missing: left behind on the ceiling.
+8. **Return.**
+   - The return Shipment (venue → warehouse) records its ShipmentItems from the check session.
+   - The Device's status becomes `collected`, and the asset is `available` again.
+9. **Episode close.**
+   - The `rk26kor` Plan branch is frozen and Fleet main is snapshotted.
+   - Later, `rk26kor` still shows `ap-lb0-01` filled by `rk-aph26a3`, as it was during the Episode, even after the AP changes.
+10. **End of life.**
+    - When broken, its status is set to `broken`, then `disposed`.
+    - The row and the tag stay forever, and the tag is never reused.
+    - A borrowed item follows the same path with `ownership = borrowed`, an `ext-` tag and/or the lender's ID, and goes back to its lender instead of being disposed.
 
-- function → **Role**
-- where → **Site / Location**, with **VlanGroup** for repeated VLAN ids
-- block → **Aggregate**, or a `container` **Prefix**
+### An untagged item
 
-The hosts export carries role, VLAN and scope as separate fields, so its consumers no longer need a combined network name.
+Cotton gloves (軍手), a consumable with no tags. The same model covers untagged gear such as an `IX2215 ×2` in a box.
 
-| Sheet name | Role | Scope | Notes |
-|---|---|---|---|
-| `mgmt` | mgmt | VlanGroup `venue` (vid 1000) | |
-| `mgmt2` | mgmt | VlanGroup `venue2` (vid 1000, Location venue2) | |
-| `tkyk-mgmt` | mgmt | Site `tkyk` | |
-| `lo` | loopback | none | `is_pool` |
-| `link` | p2p | none | holds Link prefixes |
-| `aws` | cloud | Site `apne1` | under Aggregate `10.33.128.0/18` |
-| `onpremises`, `kaigi` | none | none | `container` prefixes |
-| `pa` | public | none | under Aggregate `192.50.220.152/29` etc. |
-
-**Aggregate** (`agg`): a top-level block we hold or use, with a free-text `source`. Examples: `10.33.0.0/16` (RFC 1918), `2001:df0:8500::/48` (APNIC), `192.50.220.152/29` (PA from transit), `10.33.128.0/18` (AWS).
-
-**Role** (`role`): a function vocabulary shared by prefixes and VLANs. Values: `loopback`, `p2p`, `mgmt`, `life`, `air`, `usr`, `cast`, `public`, `cloud`, `nat64-outer`, …
-
-**VlanGroup** (`vlg`): a scope where VLAN ids are unique. Fields: `name`, scope (`site` or `location`).
-
-**Vlan** (`vlan`): `group`, `vid`, `name`, `role`.
-
-**Prefix** (`pfx`):
-- `prefix` (CIDR), `family`
-- `status`: `container` | `active` | `reserved` | `deprecated`
-- `role`, `vlan`, `site` / `location` (nullable)
-- `is_pool`
-- `gateway` (full address; `::a` accepted as input shorthand)
-- `dhcp_subnet_id` (Kea id, reference only), `description`
-- Parents and children come from containment, as in NetBox. Carrier NGN prefixes are `active` prefixes with a note.
-
-**IpRange** (`iprange`): `start`, `end`, `role` (`dhcp_pool`, …), `description`. Informational only, since Kea pools stay in the repo.
-
-**IpAddress** (`ip`):
-- `address` (with prefix length, as NetBox stores it), `family`
-- `status`: `active` | `reserved` | `deprecated` | `dhcp`
-- `role`: `loopback` | `anycast` | `vip` | … (nullable)
-- `interface` (nullable)
-- `dns_name` (override; normally derived), `dns` (`emit` | `skip`)
-- `dhcp_identifier_type` (`hw_address` | `duid` | `client_id`) and `dhcp_identifier`, exported as Kea reservations
-- `configured_at`, `verified_at`, `remark`; these replace the sheet's `update` and `configured?` columns (`updated_at` is automatic)
-- The containing prefix is derived, replacing the free-text CIDR column.
-
-**Link** (`link`): a first-class point-to-point link built on the address model.
-- `a_interface`, `z_interface`, `prefix4` (a /31 with role `p2p`), `prefix6` (the matching `ca22:<N>::/124`), `description`
-- Creating a Link allocates the next free /31 and /124 and creates the four IpAddresses: the even v4 address and `::a` go to the A end, the odd address and `::b` to the Z end.
-- Addresses stay directly editable. The topology check warns when a Link and its addresses disagree.
-
-**Asn** (`asn`): `number`, `name` (`er.venue`). Devices link to their ASN.
-
-### Devices
-
-**Device** (`dev`): a logical node, the `name` in `addresses` and the `ID` in `devices`.
-- `site` and `name` together are unique (`tun-01` exists at hnd, nrt, itm and venue)
-- `location` (nullable)
-- `role` (derived from the name prefix for now: `br`, `er`, `cs`, `as`, `es`, `ap`, `tun`, `nat`, `wire`, `wlc`, …)
-- `platform` (`junos` | `nec_ix` | `ios` | `aireos` | `linux` | `aws` | `other`)
-- `required_category` (e.g. `L2: 1G PoE+`, for stock planning)
-- Fill, one of:
-  - `asset_lineage` (a tagged Fleet asset, owned or borrowed)
-  - `stock_line_lineage` (an untagged item)
-- `status`: `planned` | `deployed` | `not_deployed` | `collected`. This replaces the cloudprober exclusion list, the "not deployed" notes and 回収済.
-- `primary_ip4`, `primary_ip6` (encouraged, as in NetBox)
-- `asn`, `description`
-- FQDN is derived: `<name>.<site>.rubykaigi.net`.
-
-**Interface** (`iface`): `device`, `name` (`lo`, `ge-0/0/5.10`, `irb.1000`, `me0`, `venue2-vlan1000`), `mac` (nullable), `description`.
-
-### Cables
-
-The spreadsheet is the single source of truth for cable planning and measuring. The app imports it repeatedly: sheet-owned fields are overwritten on every import, and app-owned fields (order, receipt, prepare, ship state) are kept, matched by cable ID. Cables are consumed per Episode, so all cable data lives in the Plan.
-
-**Cable ID grammar**: `<kind>:<a>@<a-location>/<z>[~a|~b] [<WAYPOINT_A>-<WAYPOINT_Z>]`, e.g. `E:ngn1@noc/xs1`, `C:as@are/trbE~a TRBFO-TRBFI`.
-- `kind`: `E` External, `B` Backbone, `C` Core, `A` Access.
-- `@<a-location>`: where the A end sits (`wlc@noc` is the WLC at location `noc`).
-- Each end is a short device reference:
-  - `<role><n>` names a device, e.g. `tun1` is `tun-01` and `xs1` is `xs-01`.
-  - A bare role names the only device of that role, e.g. `wlc` or `as`.
-  - `<location><role letter>[<n>]` names a device by location and role, e.g. `trbE` is the Edge switch at `trb`. When a location has several, they are numbered: `traE1`, `traE2` are `es-tra-01` and `es-tra-02`.
-- `~a` / `~b`: the two members of a redundant pair.
-- The waypoint pair names a 重畳区間 (overlapping section). That row is shared by every cable spanning the same pair of waypoints. A waypoint is a venue location where a JJ (female-female coupler) is placed, so no single cable is too long to deploy or to replace after a fault. `A` is the A-side termination and `Z` the Z-side termination.
-- The parser needs a spike against the full sheet. Ends that do not resolve to a Device stay as text and raise a topology warning.
-
-**Waypoint** (`wpt`): a JJ point at the venue, usually where cables cross between rooms. Fields: `site`, `location` (nullable), `code` (`TRBFO`, `SPOFI`), `description`.
-- `location` is set when the waypoint sits in a named Location (a track hall, a foyer or lobby that has a code).
-- It stays empty for places with no Location, such as backstage hallways. There, `description` says where it is.
-
-**Cable** (`cable`): one row of the `cables` tab.
-- Sheet-owned:
-  - `cable_id` (unique per branch), parsed into `kind`, `a_end`, `location`, `z_end`, `pair_member`
-  - `waypoint_a`, `waypoint_z`
-  - `shared_section` (true for a 重畳区間 row)
-  - `required_length_m` (適正), `length_m` (長さ), `medium` (より線 細径, より線 通常径, 単線, OM3, …), `colour`, `coupler` (JJ count), `comment`
-- Resolved: `a_interface`, `z_interface` (from the parsed ends when possible), feeding the topology check.
-- App-owned:
-  - `status`: `planned` | `ordered` | `received` | `prepared` | `shipped` | `installed`
-  - `order_line`, `unboxed`, `labelled`
-  - `container_lineage` (Fleet container, once packed)
-
-**CableOrder** (`cableo`) and **CableOrderLine** (`cableol`): an order to a vendor, grouping cables by medium, colour and length. Fields: `vendor`, `ordered_at`, `status`; per line, `quantity` and `received_quantity` (納品チェック). Exports cover order forms (`cables-order`, rasterised), JJ orders (`jj-order`) and labels.
-
-## Entities: Fleet
-
-Fleet tables carry the same `branch_id`, `lineage`, `updated_seq` and timestamps.
-
-**Product** (`prod`): a model, SKU or consumable type.
-- `name` / `sku` (`AIR-AP2802I-Q-K9`, `SRX300`, `軍手`, `結束バンド`), `vendor`
-- `category`: a fixed vocabulary shipped as static records (frozen_record style): `L3: 1G Router`, `L2: 1G`, `L2: 1G PoE+`, `L2: 100M PoE+`, `Wi-Fi AP`, `WLC`, `Transceiver`, `Power`, `Tool`, `Consumable`, …
-- `tracking`: `tagged` | `counted`
-- `tag_kinds` (expected kinds such as `aph`, for the tag/product warning)
-- `platform` (default for devices)
-
-**Asset** (`a`): one tagged item. Its tag is its identity for life.
-- `tag` (`rk-srnp19a1`), parsed into `owner`, `kind`, `year`, `batch`, `number`, `part`
-- `parent` (accessories such as `+psu`)
-- `product`, `serial`
-- `ownership`: `owned` | `borrowed`; for borrowed items, `lender` (Cookpad, …) and `external_id` (the lender's asset ID)
-- A borrowed item can carry our own tag, its `external_id`, or both. At least one is required, and lookups and labels prefer our tag when it exists.
-- Our tags on borrowed items use the owner prefix `ext-` with the usual grammar (`ext-srnp26a1`), and the asset is marked `ownership = borrowed`. A tag never changes, so an item bought later from its lender keeps its `ext-` tag and switches to `owned`.
-- `system`, `license`: free text, to be refreshed by automation through the API later
-- `purchase_order`, `price`, `tax`
-- `status`: `available` | `deployed` | `lost` | `broken` | `disposed`
-- Where it is: `container`, or `place`, plus `location_note` (a person, an office desk)
-- `comment`
-
-**AssetMac** (`mac`): `asset`, `kind` (`ethernet` | `bssid` | `other`), `mac`, `prefix_length`. An AP's BSSID range is a masked base: `70:b3:17:c7:6a:4?` is a /44.
-
-**PurchaseOrder** (`po`): `handle` (`rk-po19a`), `purchased_on`, `vendor`, `owner`, `note`.
-
-**Place** (`place`): somewhere things are kept or sent. Fields: `name`, `kind` (`warehouse` | `office` | `venue` | `home` | `other`), `address`, `note`. Initial places: Stockmamoru (warehouse), ivry office (prep), sorah's home.
-
-**Container** (`box`): a container that travels. Containers do not nest.
-- `tag` (`rkc-21b`, `rkb-25c`, `rks-…`, `kor-…`)
-- `kind`: `folding_container` (rkc) | `cardboard` (rkb) | `suitcase` (rks) | `other`
-- `width_cm`, `depth_cm`, `height_cm`, `description` (個品備考)
-- `place` (current)
-- `status`: `active` | `lost` | `disposed`, with `retired_at`
-- A disposed or lost container keeps its row and its tag, so old scans and shipments still resolve and the tag is never reused. It can no longer be packed or added to a Shipment. Disposing a container that still holds assets or stock lines raises a warning.
-
-**ContainerManifest** (`man`): the paper in each box, giving the expected number of items per type. Fields: `container`, `product` or `category`, `expected_quantity`, `note`. Checks compare it with scanned contents.
-
-**StockLine** (`stock`): a counted holding, for untagged items.
-- `product` (or a free-text `item` until a Product exists)
-- `holder`: a container or a place
-- `quantity`, `quantity_note` (rough counts such as "いっぱい", "残り少し"), `observed_at`, `observed_in` (session, nullable)
-- `ownership`, `lender`, `episode` (for a loan to one Episode)
-- The quantity is the last observed count, not a balance. Cheap items get used by many staff during an Episode and rarely return to the same box, so they cannot be tracked as moves in and out. A count scan, or a direct edit, replaces the quantity. Past counts remain in the scans and the changelog.
-
-**Shipment** (`ship`): containers moving between Places. The usual route is warehouse → office (prep) → venue → warehouse.
-- `from_place`, `to_place`, `episode` (label), `containers`
-- `requested_at`, `shipped_at`, `received_at`, `status`
-- An outbound shipment from the warehouse requests a subset of containers (`とりだす`). Kaigi on Rails takes fewer than RubyKaigi.
-- Validation against the Episode's Plan uses Device fills only:
-  - every asset filling a `planned` Device must be in a requested container, or already at the destination
-  - per product and category, the number of devices in the requested containers must cover the Plan's untagged fills and `required_category` counts
-- Anything missing is a warning. ContainerManifests are for box checks, not shipment validation.
-- The warehouse request form (入庫申請 and its outbound counterpart) is an export.
-
-**InventorySession** (`inv`): one counting run.
-- `kind`: `pack` (prep at the office) | `check` (at the venue, before shipping back) | `receive` | `audit`
-- `place`, `episode` (label), `started_at`, `closed_at`, `note`
-- Several people scan into one session at once (the old thread-1 / thread-2 columns).
-
-**InventoryScan** (`scan`): insert-only.
-- `session`, `container` (nullable), `asset` or `stock_line` (with the observed `quantity`)
-- `scanned_by`, `scanned_at`
-- `result`: `present` | `missing` | `unexpected`
-- A scan updates `asset.container` / `asset.place` in the same transaction. The old ある? cross-check becomes a comparison of scans with the ContainerManifest and with the previous session.
+1. **Product.** A Product `軍手` with tracking `counted` and category `Consumable`.
+2. **Stock line.**
+   - A StockLine records "軍手 in `rkc-21k`, quantity 10", with `observed_at`.
+   - Before anyone counts, it can hold a rough note instead ("いっぱい").
+   - Until a Product exists, a free-text item works.
+3. **Manifest.** The box's ContainerManifest may say "軍手 10". That is an expectation, not a record.
+4. **Shipping.**
+   - If `rkc-21k` travels unopened, its ShipmentItems inherit the last count: "軍手 ×10 in `rkc-21k`".
+   - If it is opened and recounted at the office, the `pack` session's count (8) replaces the quantity and becomes the ShipmentItem.
+   - The manifest shortfall (8 against 10) is a warning, a reminder to buy more.
+5. **At the venue.**
+   - Staff take gloves from any box and put them back anywhere, or use them up.
+   - Nothing is recorded; there is no ledger of takes and returns.
+6. **Venue check.**
+   - The `check` session counts what is in each box: 0 in `rkc-21k`, and 3 found in `rkc-24c`.
+   - `rkc-21k`'s stock line becomes 0 and stays as a "refill" reminder.
+   - A new stock line is created for `rkc-24c` with 3.
+   - Untagged items never raise "missing". A stock line in a checked box that nobody counted raises "uncounted".
+7. **Refill.** Buying gloves is a direct edit of the quantity, or a count in the next session. Past counts stay in the scans and the changelog.
+8. **Untagged devices.**
+   - An untagged `IX2215 ×2` stock line can fill a Device (`stock_line_id`), so it counts toward shipment validation and `device-sum`.
+   - It is never "missing" individually. Tagging it later (`rk-r…` or `ext-…`) turns it into Assets.
 
 ## Exports
 
@@ -420,19 +317,21 @@ Labels are Tepra print sources, generated from the model rather than kept as she
 
 | Kind | Source | Columns (from the current tabs) |
 |---|---|---|
-| Device | Devices (`device-tepra`) | ID (`es-tra-01`), SKU, Label (`tra-01`), Label2 (`tra`), Label3 (`01`), Label4 (`es`) |
+| Device | Devices (`device-tepra`) | ID (`es-tra-01`), SKU, Label (`tra-01`), Label2 (`tra`), Label3 (`01`), Label4 (`es`), plus a QR code of the device name (`ap-lb0-01`) for venue assignment |
 | AP | Devices with role `ap` (`ap-tepra`) | same as Device (`ap-lb0-01` → `lb0-01`, `lb0`, `01`, `ap`) |
 | Cable (copper) | Cables (`cables-tepra`) | prefix (`E:`), descr (`ngn1@noc/xs1`), length (`2m`), flag (`E:ngn1@noc/xs1\n(2m)`), charlen, type (`2m より線 細径(青)`) |
 | Cable (fibre) | Cables with medium OM3 (`cables-tepra-mmf`) | flag only, with waypoint pair (`C:cs@noc/fh1E\nSPOFI-SPOFO (2m)`); XLSX |
 | Asset QR | Assets (asset sheet `tepra`) | handle (tag), url (`https://nwa.rubykaigi.org/<tag>`), handle2 |
 
 - Label parts come from parsing natural keys: device name into location, number and role, and cable ID into kind, ends and waypoints. No label text is stored.
+- Cable labels are one per CableSegment, the physical piece that gets labelled.
 - The cable `charlen` column becomes a warning when a label is too long for its tape width.
-- Any export can be filtered to a selection, e.g. only cables not yet `labelled`, or only APs at one Location.
+- Device and AP labels export as one bulk file per kind, recorded as a LabelExport with fixed row numbers. After printing a range in the Tepra app, staff enter it ("rows 12–40") as a LabelBatch for assignment at the venue.
+- Any export can be filtered to a selection, e.g. only cable segments not yet `labeled`, or only APs at one Location.
 
 ## Storage notes (DSQL)
 
-- `inet` and arrays exist only at query runtime, and `jsonb` has no index support. Addresses and prefixes are stored as canonical text plus a sortable key: `family` (smallint), a fixed-width hex string (8 or 32 chars) and `prefix_length`. Containment is a range scan on the hex key, and `inet` casts still work inside queries. MACs use the same scheme (12 hex chars plus `prefix_length`).
+- `inet` and arrays exist only at query runtime, and `jsonb` and `bytea` have no index support. Addresses and prefixes are stored as canonical text plus a sortable key: `family` (smallint), a fixed-width hex string (8 or 32 chars) and `prefix_length`. Containment is a range scan on the hex key, and `inet` casts still work inside queries. MACs use the same scheme (12 hex chars plus `prefix_length`). The keys become `bytea` (and `bytes` in the API) once DSQL can index it.
 - 3,000 mutated rows and 10 MiB per transaction, so forks, snapshots and imports copy in chunks.
 - Up to 24 indexes per table and 8 columns per index: enough for `(branch_id, natural key)` and `(branch_id, lineage)`.
 - No DSQL sequences: identifiers are UUIDs, and changelog order comes from `branches.head_seq`.
