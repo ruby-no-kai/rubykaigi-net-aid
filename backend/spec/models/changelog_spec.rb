@@ -326,7 +326,7 @@ RSpec.describe Changelog, :committing, type: :model do
       write(mutation: header) { response }
 
       expect { write(mutation: header, payload: write_request(header, name: "other")) { response } }
-        .to raise_error(Errors::Conflict)
+        .to raise_error(Errors::MutationIdReused)
       expect(Mutation.count).to eq(1)
     end
 
@@ -334,7 +334,7 @@ RSpec.describe Changelog, :committing, type: :model do
       write(mutation: header) { response }
       Current.actor = test_actor(subject: "github_2")
 
-      expect { write(mutation: header) { response } }.to raise_error(Errors::Conflict)
+      expect { write(mutation: header) { response } }.to raise_error(Errors::MutationIdReused)
     end
 
     it "answers a duplicate that loses the race with the winner's outcome" do

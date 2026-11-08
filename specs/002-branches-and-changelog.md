@@ -83,7 +83,7 @@ end
 - The block returns the RPC's response message. It is stored with the Mutation, and a replay returns the stored message even if the entities have changed since.
 - The block may run more than once (OCC retry), so it must read everything inside itself.
 - OCC retries use `retryable_transaction`'s defaults (4 retries). Exhausting them answers Connect `unavailable` and journals nothing, so the client's outbox (006) retries later with the same `mutation_id`.
-- Replaying a `mutation_id` that was already applied or rejected returns the stored outcome (the response, or the problem) without running the block, provided the rpc, the actor's issuer and subject, and the payload all match the journalled request. The payload is compared as a decoded message, so a re-encoded retry still matches. A mismatch raises `Errors::Conflict` and journals nothing.
+- Replaying a `mutation_id` that was already applied or rejected returns the stored outcome (the response, or the problem) without running the block, provided the rpc, the actor's issuer and subject, and the payload all match the journalled request. The payload is compared as a decoded message, so a re-encoded retry still matches. A mismatch raises `Errors::MutationIdReused`, a subclass of `Errors::Conflict`, and journals nothing.
 - Only deterministic rejections are journalled: a problem (`Problem::Detailable`) or `ActiveRecord::RecordInvalid` raised by the block. Any other failure (a bug, a timeout, OCC retries exhausted) stores nothing, so the client's retry with the same `mutation_id` applies once the cause is gone.
 
 ### Reading history
@@ -280,7 +280,7 @@ create unique index idx_<table>_branch_<key> on <table> (branch_id, <natural key
   def self.write(mutation:, branches:, rpc: nil, payload: nil, &block)
   ```
 
-  1. If `mutation` is set and a `mutations` row exists for its id, compare rpc, actor and payload. Equal: return its stored outcome. Different: raise `Errors::Conflict`.
+  1. If `mutation` is set and a `mutations` row exists for its id, compare rpc, actor and payload. Equal: return its stored outcome. Different: raise `Errors::MutationIdReused`.
   2. `ApplicationRecord.retryable_transaction`:
      1. Load the declared branches without locking. A branch's `seq` is assigned on the block's first write to it: `update branches set head_seq = head_seq + 1, updated_at = now() where id = $1 returning head_seq, state, frozen`. If the returned state is not `STATE_READY` or the branch is frozen, raise `Errors::BranchNotWritable`. Freezing a branch writes the same row, so a write racing a freeze conflicts and retries against the frozen state.
      2. Run the block with a fresh `Changelog::Context` in `Changelog.current` (an `ActiveSupport::IsolatedExecutionState` slot).

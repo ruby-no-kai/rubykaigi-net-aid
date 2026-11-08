@@ -119,6 +119,9 @@ module Errors
     problem_type :PROBLEM_TYPE_CONFLICT
   end
 
+  # A mutation_id was reused for a request with another rpc, actor or payload.
+  class MutationIdReused < Conflict; end
+
   # The resource is not in a state that allows the request.
   class FailedPrecondition < ApiError
     problem_type :PROBLEM_TYPE_FAILED_PRECONDITION

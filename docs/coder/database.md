@@ -201,7 +201,7 @@ end
 
 - `branches:` lists every branch the block may write; writing another raises `Changelog::UndeclaredBranch`. A declared branch costs nothing until the block writes it.
 - The block may run more than once on OCC conflicts, so it reads everything it depends on itself.
-- The block returns the RPC's response message. A request whose `mutation_id` is already journalled is answered with the stored response or problem without running the block; the same `mutation_id` with another rpc, actor or payload raises `Errors::Conflict`.
+- The block returns the RPC's response message. A request whose `mutation_id` is already journalled is answered with the stored response or problem without running the block; the same `mutation_id` with another rpc, actor or payload raises `Errors::MutationIdReused` (a `conflict` problem).
 - A problem or `ActiveRecord::RecordInvalid` raised by the block is journalled as a rejection and re-raised. Any other failure journals nothing, and neither does `Errors::BranchNotReady` (a branch still being prepared), so the client's retry applies once the branch is ready.
 - `mutation: nil` is for server-originated writes (jobs, imports, fork copies), which journal no Mutation. The ChangeSet records `Current.actor`; a job runs as the Actor that enqueued it, or as `Actor.system(<job class>)`.
 - Bulk inserts go through `Changelog.current.insert_all!(records)`, which validates each record and records its Change. `Changelog/BulkWrite` rejects the Active Record writes that skip callbacks (`insert_all`, `insert`, `upsert`, `update_all`, `delete_all`, `delete`, `update_columns`, `touch`, `update_counters`, and the like) elsewhere; disable it inline for a table that is not branched.

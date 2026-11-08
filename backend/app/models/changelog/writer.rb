@@ -65,7 +65,7 @@ class Changelog::Writer
   #: (Mutation, Actor) -> Changelog::Result
   private def replay(stored, actor)
     unless stored.rpc == @rpc && stored.actor_issuer == actor.issuer && stored.actor_subject == actor.subject && stored.payload_message == @payload
-      raise Errors::Conflict.new(detail: "The mutation #{mutation_id} was already used for another request.")
+      raise Errors::MutationIdReused.new(detail: "The mutation #{mutation_id} was already used for another request.")
     end
 
     log(outcome: "replayed")
