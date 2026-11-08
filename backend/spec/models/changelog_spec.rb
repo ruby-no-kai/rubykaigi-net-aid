@@ -75,7 +75,7 @@ RSpec.describe Changelog, :committing, type: :model do
     it "refuses a branch still being prepared" do
       branch.update!(state: Branch::STATE_PREPARING)
 
-      expect { write { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotWritable)
+      expect { write { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotReady)
     end
 
     it "raises on a write to an undeclared branch" do
@@ -297,6 +297,23 @@ RSpec.describe Changelog, :committing, type: :model do
       expect { write(mutation: header) { response } }.to raise_error(Changelog::ReplayedRejection) { |error|
         expect(error.problem_information.sole.field_violations.map(&:field)).to eq(%w[input.name])
       }
+    end
+
+    it "journals a write to a frozen branch as rejected" do
+      branch.update!(is_frozen: true)
+
+      expect { write(mutation: header) { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotWritable)
+      expect(Mutation.sole.outcome).to eq(Mutation::OUTCOME_REJECTED)
+    end
+
+    it "journals nothing for a write to a branch still being prepared, so its retry applies once ready" do
+      branch.update!(state: Branch::STATE_PREPARING)
+      expect { write(mutation: header) { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotReady)
+      expect(Mutation.count).to eq(0)
+
+      branch.update!(state: Branch::STATE_READY)
+      write(mutation: header) { response(SpikeRack.create!(branch:, name: "r").id) }
+      expect(Mutation.sole.outcome).to eq(Mutation::OUTCOME_APPLIED)
     end
 
     it "journals nothing for a failure that is not a rejection" do

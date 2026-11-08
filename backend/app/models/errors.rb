@@ -190,6 +190,10 @@ module Errors
     problem_type :PROBLEM_TYPE_BRANCH_NOT_WRITABLE
   end
 
+  # The branch a write names is still being prepared. It becomes writable, so a retry of the same
+  # Mutation runs again rather than replaying a rejection.
+  class BranchNotReady < BranchNotWritable; end
+
   # The cursor a request carries is one the server no longer understands, or belongs to another
   # branch.
   class ResyncRequired < ApiError

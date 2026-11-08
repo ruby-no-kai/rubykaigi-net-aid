@@ -15,4 +15,5 @@ create unique index idx_change_sets_branch_seq on change_sets (branch_id, seq);
 create index idx_change_sets_mutation on change_sets (mutation_id);
 
 grant all privileges on change_sets to app_admin;
-grant select, insert, update, delete on change_sets to app_user;
+-- Append-only: the app never updates or deletes the changelog.
+grant select, insert on change_sets to app_user;

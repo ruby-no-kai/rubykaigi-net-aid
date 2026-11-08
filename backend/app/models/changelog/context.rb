@@ -114,8 +114,12 @@ class Changelog::Context
     row = Branch.connection.select_one(Branch.sanitize_sql_array([BUMP_SQL, uuid]), "Changelog bump")
     raise ActiveRecord::RecordNotFound.new("No branch #{branch_id}", "Branch", "id", branch_id) unless row
 
-    writable = row.fetch("state") == Branch::STATE_READY && !ActiveModel::Type::Boolean.new.cast(row.fetch("is_frozen"))
-    raise Errors::BranchNotWritable.new(detail: "The branch #{branch_id} is frozen or not ready.") unless writable
+    if ActiveModel::Type::Boolean.new.cast(row.fetch("is_frozen"))
+      raise Errors::BranchNotWritable.new(detail: "The branch #{branch_id} is frozen.")
+    end
+    unless row.fetch("state") == Branch::STATE_READY
+      raise Errors::BranchNotReady.new(detail: "The branch #{branch_id} is not ready for writes yet.")
+    end
 
     Integer(row.fetch("head_seq"))
   end

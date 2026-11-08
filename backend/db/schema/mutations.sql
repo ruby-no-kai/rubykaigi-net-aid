@@ -18,4 +18,5 @@ create table mutations (
 create index idx_mutations_actor on mutations (actor_issuer, actor_subject, received_at);
 
 grant all privileges on mutations to app_admin;
-grant select, insert, update, delete on mutations to app_user;
+-- Append-only: the app never updates or deletes the changelog.
+grant select, insert on mutations to app_user;

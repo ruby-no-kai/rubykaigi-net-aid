@@ -15,4 +15,5 @@ create index idx_changes_branch_seq on changes (branch_id, seq);
 create index idx_changes_branch_entity on changes (branch_id, entity_id, seq);
 
 grant all privileges on changes to app_admin;
-grant select, insert, update, delete on changes to app_user;
+-- Append-only: the app never updates or deletes the changelog.
+grant select, insert on changes to app_user;

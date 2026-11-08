@@ -78,7 +78,7 @@ end
 - `mutation:` is the request's `MutationHeader` (004), or `nil` for server-originated writes (jobs, imports, fork copies), which journal no Mutation.
 - The ChangeSet records `Current.actor`. A job started by a request carries the starting Actor, serialised into its arguments, and sets `Current.actor` from it. A job with no human starter records issuer `system` and the job class name as subject.
 - `branches:` lists every branch the block may write. Saving a row whose `branch_id` is not declared raises `Changelog::UndeclaredBranch` (a bug, not a problem answer).
-- A written branch must be `STATE_READY` and not frozen, or the write raises `Errors::BranchNotWritable` (`PROBLEM_TYPE_BRANCH_NOT_WRITABLE`, `branch-not-writable`, 412).
+- A written branch must be `STATE_READY` and not frozen, or the write raises `Errors::BranchNotWritable` (`PROBLEM_TYPE_BRANCH_NOT_WRITABLE`, `branch-not-writable`, 412). A branch still being prepared raises its subclass `Errors::BranchNotReady`, with the same problem type, which is not journalled: the branch becomes writable, so a retry with the same `mutation_id` must run again.
 - A branch's `seq` is taken lazily, on the block's first write to it. A declared branch the block never writes gets no ChangeSet, its `head_seq` is not consumed, and its row is not locked, so declaring a branch costs nothing unless it is written.
 - The block returns the RPC's response message. It is stored with the Mutation, and a replay returns the stored message even if the entities have changed since.
 - The block may run more than once (OCC retry), so it must read everything inside itself.
@@ -355,6 +355,9 @@ Implementation complete.
 - 2026-11-08: Jobs. `ApplicationJob` captures `Current.actor` when the job is built, carries it in the serialized job data (`netaid_actor`), and performs with it as `Current.actor`, or with `Actor.system(<job class>)` when none started it, adding the Actor's tags to the Performed line. A job performed inline restores the caller's `Current.actor`.
 - 2026-11-08: `Changelog/BulkWrite` cop with specs, excluded for `app/models/changelog.rb` and `app/models/changelog/`.
 - 2026-11-08: Implementation complete. Open points for the spec author:
-  - `Errors::BranchNotWritable` is raised during the block, so a write to a preparing branch is journalled as a rejection and its retry with the same `mutation_id` replays the rejection even once the branch is ready. Frozen is permanent, preparing is not.
   - The cop flags exactly the six listed methods. `insert`, `insert!`, `upsert` and `insert_all!` on a model skip callbacks too but are not flagged; `insert_all!` shares its name with `Changelog::Context#insert_all!`.
   - `MutationHeader.base_cursors` replaces the `base_seqs` map of 004's draft; 004 and 006 should adopt it.
+- 2026-11-08: Review fixes.
+  - A preparing branch raises `Errors::BranchNotReady` (a `BranchNotWritable`), which is not journalled, so the retry applies once the branch is ready. A frozen branch is still journalled as rejected.
+  - `app_user` gets only `select, insert` on `change_sets`, `changes` and `mutations`.
+  - `Changelog/BulkWrite` also flags `delete_by`, `update_counters`, `increment!`, `decrement!`, a model's `insert_all!` (not `Changelog.current`'s), `insert`/`insert!`/`upsert` given a Hash, `touch` (not `FileUtils`'s) and an argument-less `delete`. `Changelog::Context#touch` is renamed `#track` so it does not trip the cop.

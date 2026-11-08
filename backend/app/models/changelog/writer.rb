@@ -53,7 +53,7 @@ class Changelog::Writer
     log(outcome: Mutation::OUTCOME_APPLIED, stats:)
     Changelog::Result.new(mutation_id: (mutation_id if @header), response:, cursors:)
   rescue Problem::Detailable, ActiveRecord::RecordInvalid => e
-    raise unless request_actor
+    raise if request_actor.nil? || e.is_a?(Errors::BranchNotReady)
 
     ApplicationRecord.retryable_transaction do
       journal(request_actor, outcome: Mutation::OUTCOME_REJECTED, error: problem_json(e))
