@@ -51,7 +51,7 @@ module Rk
     class Actor < ::Google::Protobuf::AbstractMessage
       include ::Google::Protobuf::_MessageClass[::Rk::NetAid::Actor]
 
-      # Who vouched for the caller: `himari` for a person, `github-actions` or `aws-iam` for a
+      # Who vouched for the caller: `himari` for a person, `github-actions` or `aws-sts` for a
       # machine.
       attr_reader issuer(): ::String
       attr_writer issuer(): ::String | ::Symbol

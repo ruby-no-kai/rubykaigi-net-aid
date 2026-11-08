@@ -18,7 +18,7 @@ module Authn
       issuers = [
         Issuers::Himari.new(url: authn.himari_issuer, audiences: authn.himari_client_ids),
         Issuers::GithubActions.new(url: authn.github_actions_issuer, audiences: [authn.audience]),
-        *aws_issuers.map { Issuers::AwsIam.new(url: it, audiences: [authn.audience]) }
+        *aws_issuers.map { Issuers::AwsSts.new(url: it, audiences: [authn.audience]) }
       ]
       issuers.index_by(&:url)
     end

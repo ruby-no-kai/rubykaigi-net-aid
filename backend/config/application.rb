@@ -63,7 +63,7 @@ module Netaid
     config.x.authn.developer_sign_in = false
     config.x.authn.audience = "https://aid.rubykaigi.net"
     config.x.authn.github_actions_issuer = "https://token.actions.githubusercontent.com"
-    # sts:GetWebIdentityToken issuers trusted for aws-iam callers, each a per-account
+    # sts:GetWebIdentityToken issuers trusted for aws-sts callers, each a per-account
     # https://<id>.tokens.sts.global.api.aws.
     config.x.authn.aws_issuers = []
     # Merged once autoloading is up, as Authn::MachineRoles lives in app/.
@@ -71,7 +71,7 @@ module Netaid
       config.x.authn.machine_roles = Authn::MachineRoles.merge(
         {
           "github-actions" => {"repo:ruby-no-kai/rubykaigi-net:ref:refs/heads/master" => %w[exporter]},
-          "aws-iam" => {}
+          "aws-sts" => {}
         },
         # Same shape as JSON. A subject in both gets the union of their roles.
         ENV.fetch("NET_AID_MACHINE_ROLES", nil),

@@ -26,7 +26,7 @@ The authenticated caller becomes the Actor that the changelog and Mutation journ
 | Person in the browser | session cookie, after himari sign-in | session holding a himari access and refresh token | `himari` | himari `sub` (`github_<uid>`) |
 | Person or agent via API | `Authorization: Bearer <himari access token>` | RFC 9068 `at+jwt` from `https://idp.rubykaigi.net`, `aud` in the client allowlist | `himari` | himari `sub` |
 | GitHub Actions | `Authorization: Bearer <GitHub OIDC ID token>` | `iss` `https://token.actions.githubusercontent.com` | `github-actions` | `sub` (`repo:<owner>/<repo>:ref:...`) |
-| AWS IAM | `Authorization: Bearer <JWT from sts:GetWebIdentityToken>` | an AWS outbound identity federation issuer listed in `config.x.authn.aws_issuers` | `aws-iam` | role ARN (`sub`) |
+| AWS STS | `Authorization: Bearer <JWT from sts:GetWebIdentityToken>` | an AWS outbound identity federation issuer listed in `config.x.authn.aws_issuers` | `aws-sts` | role ARN (`sub`) |
 
 - The app and API host is `https://aid.rubykaigi.net`. It is the audience that GitHub Actions and AWS tokens must carry. Asset labels keep printing `https://nwa.rubykaigi.org/<tag>`, which only redirects into the app (007, 014).
 - himari access tokens carry `aud` = the himari client id that obtained them. The API accepts the ids in `config.x.authn.himari_client_ids`:
@@ -102,7 +102,7 @@ message Viewer {
 
 // The caller recorded by the changelog.
 message Actor {
-  string issuer = 1; // himari, github-actions, aws-iam
+  string issuer = 1; // himari, github-actions, aws-sts
   string subject = 2;
   string display_name = 3;
   string credential_id = 4; // the sign-in or token that authenticated the request
@@ -124,7 +124,7 @@ service ViewerService {
 |---|---|
 | Person (browser or `net-aid-cli`) | himari `name` (the GitHub login) |
 | GitHub Actions | `<repository> <workflow> #<run_number>` |
-| AWS IAM | the role name, the last part of the ARN |
+| AWS STS | the role name, the last part of the ARN |
 
 `credential_id` ties writes to one sign-in or one run:
 
@@ -133,7 +133,7 @@ service ViewerService {
 | Browser session | a UUID generated at sign-in and kept across refreshes (himari exposes no session id claim) |
 | himari bearer token | `<client_id>/<jti>`, e.g. `net-aid-cli/…`, so history can show a write made through the CLI or an agent |
 | GitHub Actions | `<run_id>/<run_attempt>` |
-| AWS IAM | the token's `jti` |
+| AWS STS | the token's `jti` |
 
 An agent acting with a person's token writes as that person. History tells it apart by the `net-aid-cli/` prefix of `credential_id` and by `user_agent`, which agents are expected to set to a recognisable value.
 
@@ -218,7 +218,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 - `config/initializers/cors.rb` is removed.
 - `app/models/current.rb`: `ActiveSupport::CurrentAttributes` with `actor` (`actor` raises, `actor_maybe` returns nil).
 - `app/models/authn/`:
-  - `Authn::Issuer`: the base of one class per trusted issuer under `Authn::Issuers` (`Himari`, `GithubActions`, `AwsIam`), with JWKS URL, accepted audiences, and claim mapping to `Actor`.
+  - `Authn::Issuer`: the base of one class per trusted issuer under `Authn::Issuers` (`Himari`, `GithubActions`, `AwsSts`), with JWKS URL, accepted audiences, and claim mapping to `Actor`.
   - `Authn::BearerVerifier`: picks the issuer by the unverified `iss`, verifies, returns an `Actor`.
   - `Authn::MachineRoles`: maps machine subjects to roles.
   - `Authn::SessionRefresher`: refreshes the session's tokens with himari, called only by `RefreshSession`.
@@ -237,7 +237,7 @@ An agent acting with a person's token writes as that person. History tells it ap
   config.x.authn.machine_roles = Authn::MachineRoles.merge(
     {
       "github-actions" => {"repo:ruby-no-kai/rubykaigi-net:ref:refs/heads/master" => %w[exporter]},
-      "aws-iam" => {"arn:aws:iam::...:role/..." => %w[operator]},
+      "aws-sts" => {"arn:aws:iam::...:role/..." => %w[operator]},
     },
     ENV["NET_AID_MACHINE_ROLES"], # same shape, as JSON; a subject in both gets the union of roles
   )
@@ -278,9 +278,9 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 ### Updates
 
 - 2026-11-08: Interview complete. Logging moved onto the canonical log line of 021.
-- 2026-11-08: Added the `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt` gems (plus `webmock` for specs); the session middleware follows with the browser sign-in. `Actor`, `Current`, `Authn::Issuer` (subclasses `Himari`, `GithubActions`, `AwsIam`), `Authn::BearerVerifier`, `Authn::JwksCache` and `Authn::MachineRoles` are in.
+- 2026-11-08: Added the `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt` gems (plus `webmock` for specs); the session middleware follows with the browser sign-in. `Actor`, `Current`, `Authn::Issuer` (subclasses `Himari`, `GithubActions`, `AwsSts`), `Authn::BearerVerifier`, `Authn::JwksCache` and `Authn::MachineRoles` are in.
   - `config.x.authn.machine_roles` is merged in a `config.after_initialize` block of `config/application.rb`, since `Authn::MachineRoles` is autoloaded and not yet loadable while the application class body runs.
-  - `config.x.authn.aws_issuers` is empty and the base `aws-iam` mapping has no entry: the rubykaigi account's `sts:GetWebIdentityToken` issuer URL and the role ARN to grant are not known here. Open point: fill both in, or add them through `NET_AID_MACHINE_ROLES` and an environment override.
+  - `config.x.authn.aws_issuers` is empty and the base `aws-sts` mapping has no entry: the rubykaigi account's `sts:GetWebIdentityToken` issuer URL and the role ARN to grant are not known here. Open point: fill both in, or add them through `NET_AID_MACHINE_ROLES` and an environment override.
   - JWKS URLs: himari `/public/jwks`, GitHub `/.well-known/jwks`, AWS `/.well-known/jwks.json` (the path AWS documents for outbound identity federation issuers). The cache refetches a JWKS at most once a minute per issuer.
   - Failure reasons outside the spec's list are folded into it: a malformed token, a disallowed algorithm and a missing required claim report `bad_signature`; a token not yet valid (`nbf`, future `iat`) reports `expired`. Open point: add dedicated values if the distinction matters.
   - The algorithm allowlist stays RS256 and ES256 as specified. `sts:GetWebIdentityToken` also offers ES384, which callers must not choose.
@@ -305,3 +305,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 - 2026-11-08: Review: `Authenticatable` gains `current_actor`/`current_actor_maybe` and a memoised `current_browser_session_maybe`, used by `Authorizable` and `ViewersController`.
 - 2026-11-08: Review: the cookie session holds a Base64 `rubykaigi.net_aid.server.BrowserSession` message (`proto/rubykaigi/net_aid/server/`, a package for server-only messages) instead of a hand-mapped hash with a format number. A session that does not decode reads as signed out. `Authn::Issuer` subclasses move to `Authn::Issuers`, and specs sign with the RFC 9500 test keys.
 - 2026-11-08: Review: each known authentication and authorisation failure raises its own class, an empty subclass of `Errors::Unauthenticated` (`SignInRequired`, `MalformedAuthorization`, `BearerTokenRefused`, `BearerTokenExpired`, `NoSessionToRefresh`) or of `Errors::PermissionDenied` (`ActionDenied`), so the problem types on the wire are unchanged and `error_class` on the canonical line names the failure.
+- 2026-11-08: Review: AWS callers are vouched for by STS, so the issuer is `Authn::Issuers::AwsSts` and the Actor issuer and machine-role key are `aws-sts`.

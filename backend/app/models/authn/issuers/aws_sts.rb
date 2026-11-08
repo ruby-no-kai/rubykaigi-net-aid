@@ -5,8 +5,8 @@ module Authn
   module Issuers
     # An AWS account's outbound identity federation issuer, minting tokens through
     # sts:GetWebIdentityToken whose `sub` is the caller's role ARN.
-    class AwsIam < Authn::Issuer
-      ACTOR_ISSUER = "aws-iam" #: String
+    class AwsSts < Authn::Issuer
+      ACTOR_ISSUER = "aws-sts" #: String
 
       # @override
       #: () -> String

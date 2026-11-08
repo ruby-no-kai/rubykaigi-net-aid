@@ -17,7 +17,7 @@ message Viewer {
 
 // The caller recorded by the changelog.
 message Actor {
-  // Who vouched for the caller: `himari` for a person, `github-actions` or `aws-iam` for a
+  // Who vouched for the caller: `himari` for a person, `github-actions` or `aws-sts` for a
   // machine.
   string issuer = 1;
   // The caller's identifier at the issuer: a himari `sub` (`github_<uid>`), a GitHub Actions

@@ -63,13 +63,13 @@ RSpec.describe Authn::BearerVerifier, type: :model do
     end
   end
 
-  describe "AWS IAM tokens" do
+  describe "AWS STS tokens" do
     it "maps the claims to an Actor with the machine roles of its role ARN" do
       arn = "arn:aws:iam::123456789012:role/netaid-refresher"
-      actor = with_machine_roles("aws-iam" => {arn => %w[operator]}) { verify(aws_token(jti: "j-2")) }
+      actor = with_machine_roles("aws-sts" => {arn => %w[operator]}) { verify(aws_token(jti: "j-2")) }
 
       expect(actor).to have_attributes(
-        issuer: "aws-iam", subject: arn, display_name: "netaid-refresher", credential_id: "j-2", roles: %w[operator],
+        issuer: "aws-sts", subject: arn, display_name: "netaid-refresher", credential_id: "j-2", roles: %w[operator],
       )
     end
   end

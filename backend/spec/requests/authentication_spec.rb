@@ -42,11 +42,11 @@ RSpec.describe "Bearer authentication" do
     expect(viewer.roles).to eq(%w[exporter])
   end
 
-  it "signs in an AWS IAM role" do
+  it "signs in an AWS IAM role through STS" do
     arn = "arn:aws:iam::123456789012:role/netaid-refresher"
-    viewer = with_machine_roles("aws-iam" => {arn => %w[operator]}) { get_viewer(aws_token(sub: arn)).viewer }
+    viewer = with_machine_roles("aws-sts" => {arn => %w[operator]}) { get_viewer(aws_token(sub: arn)).viewer }
 
-    expect(viewer.actor).to have_attributes(issuer: "aws-iam", subject: arn, display_name: "netaid-refresher")
+    expect(viewer.actor).to have_attributes(issuer: "aws-sts", subject: arn, display_name: "netaid-refresher")
     expect(viewer.roles).to eq(%w[operator])
   end
 
