@@ -15,7 +15,7 @@ module Api
       #: () -> Rk::NetAid::ViewerServiceRefreshSessionResponse
       def refresh_session
         browser_session = current_browser_session_maybe
-        raise Errors::Unauthenticated.new(detail: "The request carries no session to refresh.") unless browser_session
+        raise Errors::NoSessionToRefresh.new(detail: "The request carries no session to refresh.") unless browser_session
 
         refreshed = Authn::SessionRefresher.new.refresh(browser_session)
         store_browser_session(refreshed)

@@ -24,6 +24,21 @@ module Errors
     problem_type :PROBLEM_TYPE_UNAUTHENTICATED
   end
 
+  # An action other than GetViewer and RefreshSession was called without credentials.
+  class SignInRequired < Unauthenticated; end
+
+  # The Authorization header is present but carries no bearer token.
+  class MalformedAuthorization < Unauthenticated; end
+
+  # A bearer token was refused: an unknown issuer or key, a bad signature, or the wrong audience.
+  class BearerTokenRefused < Unauthenticated; end
+
+  # A bearer token is past its expiry.
+  class BearerTokenExpired < Unauthenticated; end
+
+  # RefreshSession was called by a request carrying no browser session.
+  class NoSessionToRefresh < Unauthenticated; end
+
   # The session's himari access token has expired, and ViewerService.RefreshSession renews it.
   class SessionExpired < ApiError
     problem_type :PROBLEM_TYPE_SESSION_EXPIRED
@@ -38,6 +53,9 @@ module Errors
   class PermissionDenied < ApiError
     problem_type :PROBLEM_TYPE_PERMISSION_DENIED
   end
+
+  # No role of the caller permits the RPC's action.
+  class ActionDenied < PermissionDenied; end
 
   # The resource the request names does not exist.
   class NotFound < ApiError

@@ -14,17 +14,17 @@ module Authorizable
     before_action :authorize_rpc!
   end
 
-  # Raises unless Current.actor may perform `action`: Errors::Unauthenticated for an anonymous
-  # caller, Errors::PermissionDenied otherwise.
+  # Raises unless the caller may perform `action`: Errors::SignInRequired for an anonymous caller,
+  # Errors::ActionDenied otherwise.
   #: (String action, ?episode: String?) -> void
   private def authorize!(action, episode: nil)
     actor = current_actor_maybe
     return if Authz::Policy.permit?(actor, action, episode:)
 
     RequestLogContext.add_fields(authz_denied_action: action)
-    raise Errors::Unauthenticated.new(detail: "#{action} requires signing in.") unless actor
+    raise Errors::SignInRequired.new(detail: "#{action} requires signing in.") unless actor
 
-    raise Errors::PermissionDenied.new(detail: "The caller may not perform #{action}.")
+    raise Errors::ActionDenied.new(detail: "The caller may not perform #{action}.")
   end
 
   # The catch-all for a method the service does not declare serves no RPC, and answers 404 itself.
