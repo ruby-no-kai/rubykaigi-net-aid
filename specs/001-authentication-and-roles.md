@@ -255,7 +255,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 
 ## Current Status
 
-Implementation in progress. Implementors MUST keep this section updated as they work.
+Implementation complete in this repository. The himari clients and rule in rubykaigi-net remain. Implementors MUST keep this section updated as they work.
 
 ### Checklist
 
@@ -300,3 +300,4 @@ Implementation in progress. Implementors MUST keep this section updated as they 
   - `/auth/developer` sessions have issuer `developer`, last an hour and cannot be refreshed.
   - `filter_parameters` also filters the callback's `code`. No request headers are logged.
   - The `rubykaigi-net/tf/himari/config.ru` item stays open: that file is in another repository. What it must contain is in this spec's Implementation Plan and in `docs/coder/api.md`.
+- 2026-11-08: Implementation complete, except the himari configuration in rubykaigi-net. Open points, all recorded above: the AWS issuer and role ARN to trust, the `authn_failure` values for malformed and not-yet-valid tokens, deny evaluated per role, the sign-out request shape for 005, and that the himari access token must carry `name` and `roles`.
