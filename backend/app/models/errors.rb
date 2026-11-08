@@ -5,8 +5,24 @@ require "connect_rpc_rails/protovalidate"
 require "google/rpc/error_details_pb"
 require "protobufable/problem"
 require "protobufable/problem/information"
+require "protobufable/problem_details_pb"
 
 module Errors
+  # The protobufable.ProblemDetails a Connect error carries for a problem.
+  #: (Exception & Problem::Detailable) -> Protobufable::ProblemDetails
+  def self.problem_details_for(error)
+    problem = error.to_problem
+    information = error.is_a?(Protobufable::Problem::Information) ? error.problem_information : []
+    Protobufable::ProblemDetails.new(
+      type: problem.type || "",
+      title: problem.title || "",
+      status: problem.status,
+      detail: problem.detail || "",
+      instance: problem.instance || "",
+      information: information.map { Google::Protobuf::Any.pack(it) },
+    )
+  end
+
   # An error the API answers as a problem, typed by a value of the ProblemType enum in
   # proto/rubykaigi/net_aid/problem.proto.
   class ApiError < StandardError
@@ -167,6 +183,17 @@ module Errors
 
       [*(@field_prefix unless @field_prefix.empty?), *names].join(".")
     end
+  end
+
+  # The branch a write names is frozen, or is not ready for writes yet.
+  class BranchNotWritable < ApiError
+    problem_type :PROBLEM_TYPE_BRANCH_NOT_WRITABLE
+  end
+
+  # The cursor a request carries is one the server no longer understands, or belongs to another
+  # branch.
+  class ResyncRequired < ApiError
+    problem_type :PROBLEM_TYPE_RESYNC_REQUIRED
   end
 
   # The server failed to answer the request.

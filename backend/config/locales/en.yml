@@ -11,3 +11,5 @@ en:
       session_expired: Session Expired
       session_revoked: Session Revoked
       unavailable: Service Unavailable
+      branch_not_writable: Branch Not Writable
+      resync_required: Resync Required

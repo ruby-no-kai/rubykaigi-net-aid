@@ -19,20 +19,10 @@ class ConnectExceptions < ConnectRpcRails::ExceptionsApp
   # The answer Protobufable::Connect::ProblemRescuable gives a problem raised inside a controller.
   #: (Exception & Problem::Detailable) -> ConnectRpcRails::Error
   private def problem_error_for(exception)
-    problem = exception.to_problem
-    information = exception.is_a?(Protobufable::Problem::Information) ? exception.problem_information : []
-    details = Protobufable::ProblemDetails.new(
-      type: problem.type || "",
-      title: problem.title || "",
-      status: problem.status,
-      detail: problem.detail || "",
-      instance: problem.instance || "",
-      information: information.map { Google::Protobuf::Any.pack(it) },
-    )
-
+    details = Errors.problem_details_for(exception)
     ConnectRpcRails::Error.new(
-      ConnectRpcRails::Error.code_for_http_status(problem.status),
-      problem.detail.presence || problem.title,
+      ConnectRpcRails::Error.code_for_http_status(details.status),
+      details.detail.presence || details.title,
       details: [Google::Protobuf::Any.pack(details)],
     )
   end

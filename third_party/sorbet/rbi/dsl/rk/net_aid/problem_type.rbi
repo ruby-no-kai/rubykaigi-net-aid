@@ -18,12 +18,14 @@ module Rk::NetAid::ProblemType
   end
 end
 
+Rk::NetAid::ProblemType::PROBLEM_TYPE_BRANCH_NOT_WRITABLE = 11
 Rk::NetAid::ProblemType::PROBLEM_TYPE_CONFLICT = 4
 Rk::NetAid::ProblemType::PROBLEM_TYPE_FAILED_PRECONDITION = 5
 Rk::NetAid::ProblemType::PROBLEM_TYPE_INTERNAL = 7
 Rk::NetAid::ProblemType::PROBLEM_TYPE_INVALID_RECORD = 6
 Rk::NetAid::ProblemType::PROBLEM_TYPE_NOT_FOUND = 3
 Rk::NetAid::ProblemType::PROBLEM_TYPE_PERMISSION_DENIED = 2
+Rk::NetAid::ProblemType::PROBLEM_TYPE_RESYNC_REQUIRED = 12
 Rk::NetAid::ProblemType::PROBLEM_TYPE_SESSION_EXPIRED = 8
 Rk::NetAid::ProblemType::PROBLEM_TYPE_SESSION_REVOKED = 9
 Rk::NetAid::ProblemType::PROBLEM_TYPE_UNAUTHENTICATED = 1

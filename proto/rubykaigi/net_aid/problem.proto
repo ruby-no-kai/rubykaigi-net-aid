@@ -90,4 +90,17 @@ enum ProblemType {
     uri: "unavailable"
     http_status: 503
   }];
+
+  // The branch the request writes to is frozen, or is still being prepared.
+  PROBLEM_TYPE_BRANCH_NOT_WRITABLE = 11 [(problem_type) = {
+    uri: "branch-not-writable"
+    http_status: 412
+  }];
+
+  // The server no longer understands the cursor the request carries. Drop the local copy of that
+  // branch and bootstrap it again. Pending writes are unaffected and can be sent as they are.
+  PROBLEM_TYPE_RESYNC_REQUIRED = 12 [(problem_type) = {
+    uri: "resync-required"
+    http_status: 412
+  }];
 }
