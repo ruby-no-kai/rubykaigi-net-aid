@@ -2,9 +2,9 @@
 # frozen_string_literal: true
 
 module Authn
-  class Issuer
+  module Issuers
     # GitHub Actions, issuing an OIDC ID token to a workflow run with `id-token: write`.
-    class GithubActions < Issuer
+    class GithubActions < Authn::Issuer
       ACTOR_ISSUER = "github-actions" #: String
 
       # @override

@@ -10,8 +10,16 @@ module AuthnHelper
   AWS = "https://aws-issuer.tokens.sts.global.api.aws"
   AUDIENCE = "https://aid.rubykaigi.net"
 
-  def self.rsa_key = @rsa_key ||= JWT::JWK.new(OpenSSL::PKey::RSA.generate(2048), {kid: "rsa-1", use: "sig", alg: "RS256"})
-  def self.ec_key = @ec_key ||= JWT::JWK.new(OpenSSL::PKey::EC.generate("prime256v1"), {kid: "ec-1", use: "sig", alg: "ES256"})
+  # The RFC 9500 test keys, published for tests and never trusted elsewhere.
+  def self.rfc9500_key(name) = OpenSSL::PKey.read(Rails.root.join("spec/fixtures/files/rfc9500/#{name}.pem").read)
+
+  def self.rsa_key = @rsa_key ||= JWT::JWK.new(rfc9500_key("test_rsa2048"), {kid: "rsa-1", use: "sig", alg: "RS256"})
+  def self.ec_key = @ec_key ||= JWT::JWK.new(rfc9500_key("test_ecc_p256"), {kid: "ec-1", use: "sig", alg: "ES256"})
+
+  # A key no stubbed JWKS publishes.
+  def self.other_rsa_key(kid:, use: nil)
+    JWT::JWK.new(rfc9500_key("test_rsa4096"), {kid:, use:, alg: "RS256"}.compact)
+  end
 
   def stub_jwks(url, keys: [AuthnHelper.rsa_key, AuthnHelper.ec_key])
     stub_request(:get, url).to_return(

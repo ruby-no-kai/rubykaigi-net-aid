@@ -2,9 +2,9 @@
 # frozen_string_literal: true
 
 module Authn
-  class Issuer
+  module Issuers
     # himari, issuing RFC 9068 access tokens for a person to the client that obtained them.
-    class Himari < Issuer
+    class Himari < Authn::Issuer
       ACTOR_ISSUER = "himari" #: String
       # RFC 9068 section 2.1, compared case-insensitively as media types are.
       ACCESS_TOKEN_TYPES = %w[at+jwt application/at+jwt].freeze #: Array[String]

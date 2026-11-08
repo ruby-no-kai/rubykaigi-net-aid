@@ -90,7 +90,7 @@ RSpec.describe Authn::BearerVerifier, type: :model do
     end
 
     it "refuses a token signed by another key under a known kid" do
-      other = JWT::JWK.new(OpenSSL::PKey::RSA.generate(2048), {kid: "rsa-1", alg: "RS256"})
+      other = AuthnHelper.other_rsa_key(kid: "rsa-1")
       claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
       expect(failure_of(sign_token(claims, key: other, header: {typ: "at+jwt"}))).to eq(["bad_signature", AuthnHelper::HIMARI])
     end
@@ -117,7 +117,7 @@ RSpec.describe Authn::BearerVerifier, type: :model do
   end
 
   describe "signing keys" do
-    let(:rotated) { JWT::JWK.new(OpenSSL::PKey::RSA.generate(2048), {kid: "rsa-2", use: "sig", alg: "RS256"}) }
+    let(:rotated) { AuthnHelper.other_rsa_key(kid: "rsa-2", use: "sig") }
     let(:rotated_token) { sign_token(JWT.decode(himari_access_token, nil, false).first, key: rotated, header: {typ: "at+jwt"}) }
 
     it "refuses a kid the JWKS lacks" do

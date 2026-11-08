@@ -52,7 +52,7 @@ module Authn
     #: (String) -> Actor
     def self.verify(access_token)
       authn = Rails.configuration.x.authn
-      issuer = Issuer::Himari.new(url: authn.himari_issuer, audiences: [authn.session_client_id])
+      issuer = Issuers::Himari.new(url: authn.himari_issuer, audiences: [authn.session_client_id])
       BearerVerifier.new(issuers: {issuer.url => issuer}).verify(access_token, user_agent: "")
     end
 

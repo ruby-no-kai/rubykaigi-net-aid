@@ -2,10 +2,10 @@
 # frozen_string_literal: true
 
 module Authn
-  class Issuer
+  module Issuers
     # An AWS account's outbound identity federation issuer, minting tokens through
     # sts:GetWebIdentityToken whose `sub` is the caller's role ARN.
-    class AwsIam < Issuer
+    class AwsIam < Authn::Issuer
       ACTOR_ISSUER = "aws-iam" #: String
 
       # @override

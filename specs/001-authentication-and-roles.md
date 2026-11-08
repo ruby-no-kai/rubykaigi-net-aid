@@ -218,7 +218,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 - `config/initializers/cors.rb` is removed.
 - `app/models/current.rb`: `ActiveSupport::CurrentAttributes` with `actor` (`actor` raises, `actor_maybe` returns nil).
 - `app/models/authn/`:
-  - `Authn::Issuer`: one per trusted issuer, with JWKS URL, accepted audiences, and claim mapping to `Actor`.
+  - `Authn::Issuer`: the base of one class per trusted issuer under `Authn::Issuers` (`Himari`, `GithubActions`, `AwsIam`), with JWKS URL, accepted audiences, and claim mapping to `Actor`.
   - `Authn::BearerVerifier`: picks the issuer by the unverified `iss`, verifies, returns an `Actor`.
   - `Authn::MachineRoles`: maps machine subjects to roles.
   - `Authn::SessionRefresher`: refreshes the session's tokens with himari, called only by `RefreshSession`.

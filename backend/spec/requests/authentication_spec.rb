@@ -67,7 +67,7 @@ RSpec.describe "Bearer authentication" do
     ],
     "an ID token" => [-> { himari_id_token }, "id_token_as_bearer", AuthnHelper::HIMARI],
     "a token naming an unknown kid" => [
-      -> { sign_token(JWT.decode(himari_access_token, nil, false).first, key: JWT::JWK.new(OpenSSL::PKey::RSA.generate(2048), {kid: "gone", alg: "RS256"}), header: {typ: "at+jwt"}) },
+      -> { sign_token(JWT.decode(himari_access_token, nil, false).first, key: AuthnHelper.other_rsa_key(kid: "gone"), header: {typ: "at+jwt"}) },
       "unknown_kid", AuthnHelper::HIMARI
     ]
   }.each do |description, (token, reason, issuer)|
