@@ -243,6 +243,10 @@ GEM
     rails-html-sanitizer (1.7.1)
       loofah (~> 2.25, >= 2.25.2)
       nokogiri (>= 1.15.7, != 1.16.7, != 1.16.6, != 1.16.5, != 1.16.4, != 1.16.3, != 1.16.2, != 1.16.1, != 1.16.0.rc1, != 1.16.0)
+    rails_semantic_logger (5.2.0)
+      rack
+      railties (>= 7.2)
+      semantic_logger (>= 5.1)
     railties (8.1.4)
       actionpack (= 8.1.4)
       activesupport (= 8.1.4)
@@ -324,6 +328,9 @@ GEM
     rubydex (0.4.1-arm64-darwin)
     rubydex (0.4.1-x86_64-linux)
     securerandom (0.4.1)
+    semantic_logger (5.2.0)
+      concurrent-ruby (~> 1.0)
+      logger (~> 1.5)
     sorbet (0.6.13573)
       sorbet-static (= 0.6.13573)
     sorbet-runtime (0.6.13573)
@@ -392,6 +399,7 @@ DEPENDENCIES
   protovalidate (~> 0.1)
   puma (>= 5.0)
   rails (~> 8.1.4)
+  rails_semantic_logger
   rspec-rails
   rubocop-rails
   rubocop-rspec
@@ -491,6 +499,7 @@ CHECKSUMS
   rails (8.1.4) sha256=5f3ecdf9a2a3b79b2e31b8fee3b64a00f7284d76e5631f87d0e58e665911a33b
   rails-dom-testing (2.3.0) sha256=8acc7953a7b911ca44588bf08737bc16719f431a1cc3091a292bca7317925c1d
   rails-html-sanitizer (1.7.1) sha256=e797a7c9b01e567307e317c576b49ab4168017e63eea4dba9ce3cb587e2f22c2
+  rails_semantic_logger (5.2.0) sha256=c02dcc300bbfc520beb48e997305652d3b6f1d87fb1ca5325af75f55d4568350
   railties (8.1.4) sha256=b5e7a8e8984e33114d68af62227971960aae1e6c02bd7c9d826ffad97fff583c
   rainbow (3.1.1) sha256=039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a
   rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
@@ -517,6 +526,7 @@ CHECKSUMS
   rubydex (0.4.1-arm64-darwin) sha256=d23720253876d88fb98954e5d3a1ef9696a269697acf50e3ab53cdfbb2b66b96
   rubydex (0.4.1-x86_64-linux) sha256=4e2c8398c9fc585485b54edd28f5ecf76b5a02255e177b6f8402e9d2afffd51b
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
+  semantic_logger (5.2.0) sha256=603fb25c6c216b0ec468eb19897f7b06e6fd54d41fd8974765ae03048a736fd9
   sorbet (0.6.13573) sha256=e11c27aeabaca36c92c540fcbbf200326553dad310c0114ce103e1ebf0fdc136
   sorbet-runtime (0.6.13573) sha256=7a96a9699c4aa6987e915ff7ca166ae79056efc3714ef4f3719d672fb3222afb
   sorbet-static (0.6.13573-aarch64-linux) sha256=e5445d02817c269b9538678a4884b29b1f15f1a840c7c6368c58c3a77bc9c2be

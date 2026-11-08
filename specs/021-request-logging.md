@@ -166,11 +166,11 @@ fields @timestamp, message, named_tags.actor_subject, payload.problem_type
 
 ## Current Status
 
-Interview complete. Implementors MUST keep this section updated as they work.
+Implementation in progress. Implementors MUST keep this section updated as they work.
 
 ### Checklist
 
-- [ ] Add `rails_semantic_logger`; JSON in production, colour text elsewhere, `RAILS_LOG_FORMAT=json` override; `started = false`; `autoload_lib`
+- [x] Add `rails_semantic_logger`; JSON in production, colour text elsewhere, `RAILS_LOG_FORMAT=json` override; `started = false`; `autoload_lib`
 - [ ] `RequestLogContext` and the `on_log` hook (tags on every line; counters on the job perform line)
 - [ ] `RequestLogTagger` middleware (`request_id`)
 - [ ] `HandlerLogTaggable` (`handler` = `netaid:<Method>`)
@@ -184,3 +184,4 @@ Interview complete. Implementors MUST keep this section updated as they work.
 ### Updates
 
 - 2026-11-08: Interview complete.
+- 2026-11-08: Added rails_semantic_logger 5.2. Appenders are declared through `config.rails_semantic_logger.appenders` per environment, since 5.x deprecates `format=`: JSON to STDOUT in production, a colour log file in development and test (plus STDOUT under `rails server` and STDERR in `rails console` in development), with `RAILS_LOG_FORMAT=json` switching development and test to JSON. `autoload_lib` was already on. A shim declares `RSpec::Matchers::Composable` for semantic_logger's RSpec matchers.

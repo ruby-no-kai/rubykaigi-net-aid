@@ -43,5 +43,8 @@ module Netaid
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # Completed carries everything Started does, so Started logs at debug.
+    config.rails_semantic_logger.started = false
   end
 end

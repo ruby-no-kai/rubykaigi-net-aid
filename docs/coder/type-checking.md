@@ -94,6 +94,7 @@ Shims in `backend/sorbet/rbi/shims/`:
 
 - `connect_rpc_rails.rbi`: the routes DSL is mixed into the mapper at boot, and `connect_service` blocks are evaluated by `MethodMapping`.
 - `google-protobuf.rbi`: well-known types reopened after `tapioca gem` runs (`Any.pack`, `Timestamp#to_time`, `Value.from_ruby`).
+- `semantic_logger.rbi`: semantic_logger's RSpec matchers include `RSpec::Matchers::Composable`, which the empty rspec-expectations RBI lacks.
 - `protobufable.rbi`: `AlbaBinding` installs its class methods through Alba's `helper`.
 - `time.rbi`: `Time.current` returns `ActiveSupport::TimeWithZone`.
 

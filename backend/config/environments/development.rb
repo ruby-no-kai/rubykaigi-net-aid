@@ -29,6 +29,14 @@ Rails.application.configure do
   # Change to :null_store to avoid any caching.
   config.cache_store = :memory_store
 
+  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes.
+  log_format = ENV.fetch("RAILS_LOG_FORMAT", "color").to_sym
+  config.rails_semantic_logger.appenders do |appenders|
+    appenders.add(file_name: "log/development.log", formatter: log_format)
+    appenders.add_server(formatter: log_format)
+    appenders.add_console(formatter: log_format)
+  end
+
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
 

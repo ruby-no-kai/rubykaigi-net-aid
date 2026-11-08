@@ -21,6 +21,8 @@ gem "protovalidate", "~> 0.1"
 gem "problem", "~> 0.1"
 gem "googleapis-common-protos-types", require: "google/rpc/error_details_pb"
 gem "alba"
+# JSON request logs with one canonical line per request
+gem "rails_semantic_logger"
 # Use the Puma web server [https://github.com/puma/puma]
 gem "puma", ">= 5.0"
 
