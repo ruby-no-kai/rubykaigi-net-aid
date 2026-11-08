@@ -92,6 +92,19 @@ raise Errors::NotFound.new(detail: "No device has the name #{name.inspect}.")
 - Titles come from `config/locales/en.yml` under `problem_details.titles`.
 - `ProblemType` values and URIs are append-only. Add a type only when a client will branch on it.
 
+## Authentication and authorisation
+
+`Api::ApplicationController` authenticates every call, then authorises it by the action of its RPC.
+
+- `Authenticatable` (`app/controllers/concerns/authenticatable.rb`) sets `Current.actor` from an `Authorization: Bearer` token: a himari access token (`at+jwt`) for a client in `config.x.authn.himari_client_ids`, a GitHub Actions ID token, or an `sts:GetWebIdentityToken` token from an issuer in `config.x.authn.aws_issuers`. GitHub and AWS tokens must carry the audience `https://aid.rubykaigi.net`. A call without credentials stays anonymous; refused credentials answer `unauthenticated`.
+- People's roles come from himari's `roles` claim. Machine roles come from `config.x.authn.machine_roles`, keyed by issuer and exact subject, extended without a deploy through the `NET_AID_MACHINE_ROLES` JSON.
+- `Authorizable` derives the action `netaid:<Method>` from the routed RPC and asks `Authz::Policy.permit?`. An anonymous caller is answered `unauthenticated`, a caller without a role allowing it `permission_denied`. Controllers declare nothing.
+- Role statements live in `app/models/authz/policy.rb`. An admin-only RPC is added to the operator's deny list. `spec/proto/rpc_actions_spec.rb` fails when some routed RPC is allowed for no role, or when two services declare the same method name.
+- Check a further action inside an RPC with `authorize!("netaid:RestoreMutation", episode:)`.
+- Read the caller with `Current.actor`, which raises when there is none, or `Current.actor_maybe`.
+
+Specs mint tokens with `spec/support/authn_helper.rb` (`himari_access_token`, `github_actions_token`, `aws_token`) after `stub_trusted_jwks`. WebMock blocks every other network call.
+
 ## Browser protection
 
 `ConnectForgeryProtection` refuses POSTs without `Connect-Protocol-Version: 1` and requests whose `Sec-Fetch-Site` or `Origin` names another site, so no CSRF token is needed. Never grant CORS preflights for the API. CloudFront in front of the backend must forward `Connect-Protocol-Version`, `Connect-Timeout-Ms`, `Sec-Fetch-Site` and `Origin`.

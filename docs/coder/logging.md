@@ -46,6 +46,8 @@ Tags identify the request and apply to every line written after they are set, ne
 |---|---|
 | `request_id` | `action_dispatch.request_id` |
 | `handler` | the authorisation action of the routed RPC, `netaid:<Method>`; absent for a method the service does not declare |
+| `actor_issuer`, `actor_subject`, `credential_id` | the authenticated Actor (`Authenticatable`); absent for an anonymous caller and on lines written before authentication |
+| `episode` | the Episode slug of the Plan branch the request names (`Authorizable`); absent when it names none |
 
 ### Payload fields
 
@@ -58,8 +60,11 @@ Tags identify the request and apply to every line written after they are set, ne
 | `connect_code` | the Connect error code the controller rendered, problems included |
 | `error_class` | the exception a `rescue_from` handled, or the unhandled one |
 | `problem_type` | the problem's `type` without its URI prefix, such as `permission-denied` |
+| `authn_failure` | why the credentials were refused: `expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired` or `session_revoked` |
+| `authn_issuer` | the unverified `iss` of a refused bearer token |
+| `authz_denied_action` | the action the policy denied, such as `netaid:CreateSite` |
 
-Error fields are absent when the request did not fail. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it has no `connect_code`.
+Error fields are absent when the request did not fail. Authentication and authorisation failures answer 4xx, so their lines stay at info. A token never appears on the line, only the reason it was refused. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it has no `connect_code`.
 
 ### Counters
 
@@ -78,7 +83,7 @@ A job's canonical line is rails_semantic_logger's `Performed` line. `RequestLogC
 Each spec that logs lists what it adds in a "Logging" subsection.
 
 - Tags only identify the request's scope: who, which RPC, which Episode. Add one with `RequestLogContext.add_tags(...)` as soon as it is known.
-- A value describing the request as a whole is a payload field in `ActionLogPayloadable`, snake_case with an area prefix: `authn_failure`, `mutation_outcome`. An enumerated value is a Symbol (`connect_code: :permission_denied`).
+- A value describing the request as a whole is a payload field, snake_case with an area prefix: `authn_failure`, `mutation_outcome`. An enumerated value is a Symbol (`connect_code: :permission_denied`). Fields read from the request belong in `ActionLogPayloadable`; fields known where the work happens go through `RequestLogContext.add_fields(...)`.
 - A count is a counter, `RequestLogContext.increment(:name)`, named as a plural noun or `<thing>_<past verb>`: `occ_retries`, `changes_written`. Prefer incrementing from an `ActiveSupport::Notifications` subscriber in `config/initializers/semantic_logger.rb`; increment at the call site only when no event exists.
 - Never add a separate log line for something the canonical line can carry.
 - `filter_parameters` does not apply to fields added by code. Never log tokens, cookies or other secrets.

@@ -30,3 +30,11 @@ class Authn::JwksCache::Entry
   sig { returns(Float) }
   def fetched_at; end
 end
+
+class Authz::Statement
+  sig { returns(Symbol) }
+  def effect; end
+
+  sig { returns(T::Array[String]) }
+  def actions; end
+end

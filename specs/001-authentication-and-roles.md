@@ -269,7 +269,7 @@ Implementation in progress. Implementors MUST keep this section updated as they 
 - [ ] `Auth::SessionsController` (`/auth/himari`, callback with `return_to`, `/auth/sign_out`, development-only `/auth/developer`)
 - [ ] `Authn::SessionRefresher` and `ViewerService.RefreshSession`; `GetViewer` returning the Actor and roles
 - [ ] `Authenticatable` and `Authorizable` concerns in `Api::ApplicationController`
-- [ ] `Authz::Policy`, `Authz::Statement` and the role statements
+- [x] `Authz::Policy`, `Authz::Statement` and the role statements
 - [ ] Actor tags and `authn_failure`, `authn_issuer`, `authz_denied_action` payload fields on the canonical line (021)
 - [ ] Request and unit specs listed in the Implementation Plan, including the route-walking spec
 - [ ] himari: `net-aid`, `net-aid-local`, `net-aid-cli` clients and their AuthorizationRule in `rubykaigi-net/tf/himari/config.ru`
@@ -285,3 +285,8 @@ Implementation in progress. Implementors MUST keep this section updated as they 
   - The algorithm allowlist stays RS256 and ES256 as specified. `sts:GetWebIdentityToken` also offers ES384, which callers must not choose.
   - A himari access token's `credential_id` uses its `client_id` claim (RFC 9068), which equals `aud` for himari. `display_name` falls back to `sub` when the token has no `name` claim.
   - `Actor::USER_AGENT_LIMIT` replaces the constant `ActionLogPayloadable` held, so the Actor and the canonical line truncate alike.
+- 2026-11-08: `Authz::Policy`, `Authz::Statement` and the role statements, `Authenticatable` (bearer tokens) and `Authorizable` in `Api::ApplicationController`, and `Viewer.actor`/`Viewer.roles` on `GetViewer` (through `Api::ViewerResource` and `Api::ActorResource`). Actor tags, `authn_failure`, `authn_issuer` and `authz_denied_action` are on the canonical line through a new `RequestLogContext.add_fields`; `docs/coder/logging.md` and `docs/coder/api.md` describe them.
+  - Deny wins within a role, not across roles: an Actor may perform what any one of its roles permits. Read literally across roles, a person who is both `admin` and `operator` (in `ruby-no-kai/rk-noc` and `kaigionrails/infra`) would lose every admin-only action to the operator's denies. Open point: confirm this reading.
+  - `Authorizable` resolves no Episode yet, since no RPC carries a `BranchRef` or `MutationHeader`; `authorization_episode_maybe` returns nil until 004 adds them, and the `episode` tag is set when it returns one.
+  - Authorisation runs before request validation, because connect_rpc_rails moves `validate_connect_message!` behind every callback declared above an RPC. An unauthorised caller learns nothing about what a valid request looks like. When `authorization_episode_maybe` starts reading a `BranchRef`, it reads an unvalidated message.
+  - The route-walking spec (`spec/proto/rpc_actions_spec.rb`) also asserts that method names are unique across services.
