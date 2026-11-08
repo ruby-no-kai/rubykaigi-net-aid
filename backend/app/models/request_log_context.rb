@@ -25,9 +25,9 @@ class RequestLogContext < ActiveSupport::CurrentAttributes
     fields.merge!(new_fields)
   end
 
-  #: (Symbol) -> void
-  def self.increment(key)
-    counters[key] += 1
+  #: (Symbol, ?by: Integer) -> void
+  def self.increment(key, by: 1)
+    counters[key] += by
   end
 
   # Tags from an enclosing `SemanticLogger.tagged` block win on a shared key. A job has no

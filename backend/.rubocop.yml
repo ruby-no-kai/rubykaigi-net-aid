@@ -89,6 +89,12 @@ Changelog/BulkWrite:
     - app/models/changelog.rb
     - app/models/changelog/**/*
 
+# Changelog::Context#insert_all! is the bulk path that records Changes, and specs exercise it.
+Rails/SkipsModelValidations:
+  Exclude:
+    - app/models/changelog/**/*
+    - spec/models/changelog/**/*
+
 AllCops:
   SuggestExtensions: false
   Exclude:

@@ -19,6 +19,8 @@ module Api
     wrap_parameters false
 
     rescue_from ActiveRecord::RecordInvalid, with: :render_invalid_record
+    # OCC conflicts that outlast retryable_transaction's retries; the client retries later.
+    map_connect_errors(ActiveRecord::SerializationFailure => :unavailable)
 
     before_action :verify_connect_request_origin!
     include Authenticatable

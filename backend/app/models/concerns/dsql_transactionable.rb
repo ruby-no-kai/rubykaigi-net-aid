@@ -19,6 +19,7 @@ module DsqlTransactionable
       rescue ActiveRecord::SerializationFailure => e
         if e.dsql_retryable? && attempts < retries
           attempts += 1
+          RequestLogContext.increment(:occ_retries)
           sleep_time = base_sleep_seconds * (2**(attempts - 1)) * (0.5 + (0.5 * rand))
           Rails.logger.warn("DSQL conflict detected, retrying transaction (#{attempts}/#{retries}), waiting #{format("%.2f", sleep_time)}s: #{e.message}")
           sleep(sleep_time)
