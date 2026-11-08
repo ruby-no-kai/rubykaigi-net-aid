@@ -5,30 +5,36 @@ module Authn
   # A browser's sign-in, as its cookie session holds it: the Actor, its roles, and the himari
   # tokens that renew them.
   class BrowserSession
-    SESSION_KEY = "authn" #: String
-    # A session written in another shape reads as signed out.
-    FORMAT = 1 #: Integer
+    # Holds a Base64 Rk::NetAid::Server::BrowserSession. Anything else reads as signed out.
+    SESSION_KEY = "authn_pb" #: String
     DEVELOPER_ISSUER = "developer" #: String
     DEVELOPER_LIFETIME = 3600 #: Integer
 
     #: (ActionDispatch::Request::Session) -> BrowserSession?
     def self.load(session)
       data = session[SESSION_KEY]
-      return unless data.is_a?(Hash) && data["format"] == FORMAT
+      return unless data.is_a?(String)
+
+      message = Rk::NetAid::Server::BrowserSession.decode(Base64.strict_decode64(data))
+      actor = message.actor
+      expires_at = message.expires_at
+      return unless actor && expires_at
 
       new(
         actor: Actor.new(
-          issuer: data.fetch("issuer"),
-          subject: data.fetch("subject"),
-          display_name: data.fetch("display_name"),
-          credential_id: data.fetch("credential_id"),
+          issuer: actor.issuer,
+          subject: actor.subject,
+          display_name: actor.display_name,
+          credential_id: actor.credential_id,
           user_agent: "",
-          roles: data.fetch("roles"),
+          roles: message.roles.to_a,
         ),
-        expires_at: data.fetch("expires_at"),
-        access_token: data["access_token"],
-        refresh_token: data["refresh_token"],
+        expires_at: expires_at.seconds,
+        access_token: message.access_token.presence,
+        refresh_token: message.refresh_token.presence,
       )
+    rescue ArgumentError, Google::Protobuf::ParseError
+      nil
     end
 
     # A himari sign-in, whose Actor and roles come from the access token.
@@ -97,17 +103,14 @@ module Authn
 
     #: (ActionDispatch::Request::Session) -> void
     def store(session)
-      session[SESSION_KEY] = {
-        "format" => FORMAT,
-        "issuer" => actor.issuer,
-        "subject" => actor.subject,
-        "display_name" => actor.display_name,
-        "credential_id" => actor.credential_id,
-        "roles" => actor.roles,
-        "expires_at" => expires_at,
-        "access_token" => access_token,
-        "refresh_token" => refresh_token
-      }.compact
+      message = Rk::NetAid::Server::BrowserSession.new(
+        actor: Api::ActorResource.new(actor.with(user_agent: "")).as_protobuf,
+        roles: actor.roles,
+        expires_at: Google::Protobuf::Timestamp.new(seconds: expires_at),
+        access_token: access_token.to_s,
+        refresh_token: refresh_token.to_s,
+      )
+      session[SESSION_KEY] = Base64.strict_encode64(message.to_proto)
     end
   end
 end

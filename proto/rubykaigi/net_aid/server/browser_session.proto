@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package rubykaigi.net_aid.server;
+
+import "google/protobuf/timestamp.proto";
+import "rubykaigi/net_aid/viewer.proto";
+
+option ruby_package = "Rk::NetAid::Server";
+
+// A browser's sign-in, as its encrypted cookie session holds it. Never sent to clients.
+message BrowserSession {
+  // The signed-in person. `user_agent` stays empty, as each request supplies its own.
+  rubykaigi.net_aid.Actor actor = 1;
+  repeated string roles = 2;
+  // When the access token expires.
+  google.protobuf.Timestamp expires_at = 3;
+  // The himari tokens that renew the sign-in. Empty for a developer sign-in.
+  string access_token = 4;
+  string refresh_token = 5;
+}
