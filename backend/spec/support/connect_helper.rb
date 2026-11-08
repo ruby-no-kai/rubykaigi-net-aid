@@ -8,7 +8,7 @@ require "uri"
 module ConnectHelper
   PACKAGE = "rubykaigi.net_aid"
 
-  CONTENT_TYPES = { json: "application/json", proto: "application/proto" }.freeze
+  CONTENT_TYPES = {json: "application/json", proto: "application/proto"}.freeze
 
   # One RPC of a service: where it is served and which messages it takes and returns.
   MethodDesc = Data.define(:service_name, :descriptor) do
@@ -44,7 +44,7 @@ module ConnectHelper
         **headers
       }
     when :get
-      query = { connect: "v1", encoding: codec.to_s }
+      query = {connect: "v1", encoding: codec.to_s}
       if codec == :json
         query[:message] = request.class.encode_json(request)
       else
@@ -83,7 +83,7 @@ module ConnectHelper
 
   # Each field violation of the error's BadRequest as `[field, reason]`.
   def violations_of(error)
-    bad_request_of(error).field_violations.map { [ it.field, it.reason ] }
+    bad_request_of(error).field_violations.map { [it.field, it.reason] }
   end
 
   # The problem type of an error without its URI prefix, such as "not-found".

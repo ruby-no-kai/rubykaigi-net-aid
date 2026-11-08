@@ -31,9 +31,9 @@ module DatabaseTasks
   # In development, dev and test databases are maintained together.
   def self.target_configs
     if ENV["DATABASE_URL"] || ENV["SKIP_TEST_DATABASE"] || !Rails.env.development?
-      [ database_config ]
+      [database_config]
     else
-      [ database_config, Rails.application.config_for(:database, env: "test") ]
+      [database_config, Rails.application.config_for(:database, env: "test")]
     end
   end
 
@@ -78,12 +78,12 @@ module DatabaseTasks
   # Runs a command through script/pdsql, retrying OCC conflicts (OC000/OC001); DDL conflicts with
   # concurrent DDL and async index completion on the same cluster.
   def self.pdsql(*args, env: {}, retry_occ: false)
-    cmd = [ Rails.root.join("script", "pdsql").to_s, "--", *args ]
+    cmd = [Rails.root.join("script", "pdsql").to_s, "--", *args]
     p cmd
     retries = 0
     loop do
       output = +""
-      IO.popen(env, cmd, err: [ :child, :out ]) do |io|
+      IO.popen(env, cmd, err: [:child, :out]) do |io|
         io.each_line do |line|
           $stdout.write(line)
           output << line
@@ -95,7 +95,7 @@ module DatabaseTasks
       oc_error = output[/\(OC00[01]\)/]
       if retry_occ && oc_error && retries < 15
         retries += 1
-        interval = [ 0.1 * (2**retries), 20.0 ].min * (1 + rand * 0.5)
+        interval = [0.1 * (2**retries), 20.0].min * (1 + rand * 0.5)
         $stdout.puts "pdsql failed with #{oc_error}, retrying in #{interval.round(1)}s (#{retries}/15)..."
         sleep(interval)
         next
@@ -123,7 +123,7 @@ module DatabaseTasks
       end
       wait_for_jobs(config)
     else
-      run([ "psql", "-v", "ON_ERROR_STOP=1", "-c", stmts.join("\n") ], env: pg_env(config))
+      run(["psql", "-v", "ON_ERROR_STOP=1", "-c", stmts.join("\n")], env: pg_env(config))
     end
   end
 
@@ -133,7 +133,7 @@ module DatabaseTasks
       "DO $$ BEGIN CREATE ROLE #{role}; EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
     end
     sql << "GRANT app_user TO app_admin;"
-    run([ "psql", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql.join("\n") ], env: pg_env(config).merge("PGOPTIONS" => "-c client_min_messages=warning"))
+    run(["psql", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql.join("\n")], env: pg_env(config).merge("PGOPTIONS" => "-c client_min_messages=warning"))
   end
 
   def self.psqldef(args, config: database_config)
@@ -141,9 +141,9 @@ module DatabaseTasks
       f.write(schema_sql(config))
       f.flush
       common_args = [
-        "--config-inline", JSON.generate({ target_schema: target_schema(config) }),
+        "--config-inline", JSON.generate({target_schema: target_schema(config)}),
         # Grants only widen; narrowing one needs a manual REVOKE via BEFORE_APPLY_SQL.
-        "--config-inline", JSON.generate({ manage: { privilege: PERMISSION_ROLES.map { { target: _1 } } } }),
+        "--config-inline", JSON.generate({manage: {privilege: PERMISSION_ROLES.map { {target: _1} }}}),
         "--file", f.path,
         *args
       ]
@@ -166,9 +166,9 @@ module DatabaseTasks
           [
             "psqldef",
             # psqldef takes the password from PGPASSWORD; flags for the rest keep the command readable in logs.
-            *(env["PGHOST"] ? [ "--host", env["PGHOST"] ] : []),
-            *(env["PGPORT"] ? [ "--port", env["PGPORT"] ] : []),
-            *(env["PGUSER"] ? [ "--user", env["PGUSER"] ] : []),
+            *(env["PGHOST"] ? ["--host", env["PGHOST"]] : []),
+            *(env["PGPORT"] ? ["--port", env["PGPORT"]] : []),
+            *(env["PGUSER"] ? ["--user", env["PGUSER"]] : []),
             *common_args,
             env.fetch("PGDATABASE")
           ],
@@ -238,7 +238,7 @@ module DatabaseTasks
     SQL
     wait_until_empty("unique index(es) to become valid") do
       with_fresh_connection(config) do |pg|
-        pg.exec_params(sql, [ target_schema(config) ]).map { |r| r["index_name"] }
+        pg.exec_params(sql, [target_schema(config)]).map { |r| r["index_name"] }
       end
     end
   end
@@ -258,11 +258,11 @@ namespace :db do
 
   desc "Show the psqldef plan without applying it"
   task "migrate:status" => :environment do
-    DatabaseTasks.psqldef([ "--dry-run" ])
+    DatabaseTasks.psqldef(["--dry-run"])
   end
 
   desc "Create the database (if needed) and apply the schema"
-  task setup: [ "db:prepare", "db:seed" ]
+  task setup: ["db:prepare", "db:seed"]
 
   # The DSQL cluster has only the postgres database, so there is nothing to create.
   desc "Create the database (if needed) and apply the schema, without seeding"

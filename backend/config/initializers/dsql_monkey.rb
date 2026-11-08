@@ -3,7 +3,6 @@
 
 # Disables PostgreSQL adapter features DSQL does not support, and adds OCC helpers.
 # Based on https://github.com/aws-samples/aurora-dsql-samples/blob/main/ruby/rails/petclinic/config/initializers/adapter.rb
-# rubocop:disable Style/ClassAndModuleChildren
 require "active_record/connection_adapters/postgresql/schema_statements"
 module ActiveRecord::ConnectionAdapters::PostgreSQL::SchemaStatements
   #: (String) -> String

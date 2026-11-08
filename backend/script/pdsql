@@ -28,7 +28,7 @@ end
 argv = ARGV.dup
 external_command = argv.index('--')&.then { argv[_1 + 1..] }
 opt.parse!(argv)
-abort "PGHOST, DATABASE_URL or -h is required\n#{opt.help}" if host.nil? || host.empty?
+abort "PGHOST, DATABASE_URL or -h is required\n#{opt.help}" if host.to_s.empty?
 abort "Invalid DSQL host format #{host.inspect}" unless Dsql.host?(host)
 region = Dsql.region_of(host)
 

@@ -68,7 +68,7 @@ module Errors
 
     #: () -> Array[untyped]
     def problem_information
-      super + [ Google::Rpc::BadRequest.new(field_violations:) ]
+      super + [Google::Rpc::BadRequest.new(field_violations:)]
     end
 
     #: () -> Array[Google::Rpc::BadRequest::FieldViolation]
@@ -101,7 +101,7 @@ module Errors
         @json_names ? field.json_name : field.name
       end
 
-      [ *(@field_prefix unless @field_prefix.empty?), *names ].join(".")
+      [*(@field_prefix unless @field_prefix.empty?), *names].join(".")
     end
   end
 

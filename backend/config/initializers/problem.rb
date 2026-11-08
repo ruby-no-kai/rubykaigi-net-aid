@@ -12,7 +12,7 @@ class ConnectExceptions < ConnectRpcRails::ExceptionsApp
     request_info = Google::Rpc::RequestInfo.new(request_id: env["action_dispatch.request_id"].to_s)
 
     ConnectRpcRails::Error.new(
-      error.code, error.message, details: [ *error.details, Google::Protobuf::Any.pack(request_info) ],
+      error.code, error.message, details: [*error.details, Google::Protobuf::Any.pack(request_info)],
     )
   end
 
@@ -33,7 +33,7 @@ class ConnectExceptions < ConnectRpcRails::ExceptionsApp
     ConnectRpcRails::Error.new(
       ConnectRpcRails::Error.code_for_http_status(problem.status),
       problem.detail.presence || problem.title,
-      details: [ Google::Protobuf::Any.pack(details) ],
+      details: [Google::Protobuf::Any.pack(details)],
     )
   end
 end

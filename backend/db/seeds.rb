@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 # typed: strict
 
 # This file should ensure the existence of records required to run the application in every environment (production,

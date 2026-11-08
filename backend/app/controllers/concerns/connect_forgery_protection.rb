@@ -12,7 +12,7 @@
 # @requires_ancestor: ActionController::Metal
 module ConnectForgeryProtection
   # Sec-Fetch-Site values of a request this site's own pages made, or the viewer made directly.
-  ALLOWED_FETCH_SITES = [ "same-origin", "none" ].freeze #: Array[String]
+  ALLOWED_FETCH_SITES = ["same-origin", "none"].freeze #: Array[String]
 
   #: () -> void
   private def verify_connect_request_origin!

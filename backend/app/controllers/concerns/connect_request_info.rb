@@ -14,7 +14,7 @@ module ConnectRequestInfo
     request_info = Google::Rpc::RequestInfo.new(request_id: request.request_id.to_s)
 
     super(ConnectRpcRails::Error.new(
-      error.code, error.message, details: [ *error.details, Google::Protobuf::Any.pack(request_info) ],
+      error.code, error.message, details: [*error.details, Google::Protobuf::Any.pack(request_info)],
     ))
   end
 end

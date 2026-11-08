@@ -302,20 +302,23 @@ GEM
     rubocop-ast (1.50.0)
       parser (>= 3.3.7.2)
       prism (~> 1.7)
-    rubocop-performance (1.27.0)
-      lint_roller (~> 1.1)
-      rubocop (>= 1.89.0, < 2.0)
-      rubocop-ast (>= 1.47.1, < 2.0)
     rubocop-rails (2.38.0)
       activesupport (>= 4.2.0)
       lint_roller (~> 1.1)
       rack (>= 1.1)
       rubocop (>= 1.89.0, < 2.0)
       rubocop-ast (>= 1.44.0, < 2.0)
-    rubocop-rails-omakase (1.1.0)
-      rubocop (>= 1.72)
-      rubocop-performance (>= 1.24)
-      rubocop-rails (>= 2.30)
+    rubocop-rspec (3.10.2)
+      lint_roller (~> 1.1)
+      regexp_parser (>= 2.0)
+      rubocop (~> 1.86, >= 1.86.2)
+    rubocop-rspec_rails (2.33.0)
+      lint_roller (~> 1.1)
+      rubocop (~> 1.89)
+      rubocop-rspec (~> 3.5)
+    rubocop-shopify (3.1.0)
+      lint_roller
+      rubocop (~> 1.89)
     ruby-progressbar (1.13.0)
     rubydex (0.4.1-aarch64-linux)
     rubydex (0.4.1-arm64-darwin)
@@ -390,7 +393,10 @@ DEPENDENCIES
   puma (>= 5.0)
   rails (~> 8.1.4)
   rspec-rails
-  rubocop-rails-omakase
+  rubocop-rails
+  rubocop-rspec
+  rubocop-rspec_rails
+  rubocop-shopify
   sorbet
   tapioca
   typeid_rails
@@ -502,9 +508,10 @@ CHECKSUMS
   rspec-support (3.13.7) sha256=0640e5570872aafefd79867901deeeeb40b0c9875a36b983d85f54fb7381c47c
   rubocop (1.92.0) sha256=2af68041fb2e70bd9321d0479b49fad07f8008a3d0758c83347b4917128c56e0
   rubocop-ast (1.50.0) sha256=b9ca88300da0803ee222ad20cdb30494c0a784eed06fdc35d254b06d662788db
-  rubocop-performance (1.27.0) sha256=eeeb1374d062a368ee1c787b70eb0b0cc4b184cb1f8565f424760946146d61ce
   rubocop-rails (2.38.0) sha256=6e2b7c532efa95e3050371bec20b8f5b025662acead8bc70ee31f0e3e6fa2f06
-  rubocop-rails-omakase (1.1.0) sha256=2af73ac8ee5852de2919abbd2618af9c15c19b512c4cfc1f9a5d3b6ef009109d
+  rubocop-rspec (3.10.2)
+  rubocop-rspec_rails (2.33.0)
+  rubocop-shopify (3.1.0)
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   rubydex (0.4.1-aarch64-linux) sha256=abc1c9eb22479f60dd015fa81373163c5a71f2700b76bced1282631686bd6271
   rubydex (0.4.1-arm64-darwin) sha256=d23720253876d88fb98954e5d3a1ef9696a269697acf50e3ab53cdfbb2b66b96
