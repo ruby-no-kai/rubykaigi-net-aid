@@ -58,6 +58,14 @@ RSpec.describe Authz::Policy, type: :model do
     expect(permitted(%w[operator admin], admin_only)).to eq(admin_only)
   end
 
+  it "lets an explicit deny in any role win over another role's allow" do
+    stub_const("Authz::Policy::ROLE_STATEMENTS", described_class::ROLE_STATEMENTS.merge(
+      "suspended" => [Authz::Statement.new(effect: :deny, actions: %w[netaid:*])],
+    ))
+
+    expect(permitted(%w[admin suspended], reads + writes)).to eq([])
+  end
+
   it "accepts the Episode a request targets" do
     expect(described_class.permit?(actor("operator"), "netaid:CreateSite", episode: "rk26")).to be(true)
   end

@@ -75,17 +75,18 @@ Authorisation is by action, in the style of AWS IAM. Every RPC is an action name
 
 - Action name: `netaid:<Method>`, one prefix for the whole API as an AWS service has. `rubykaigi.net_aid.SiteService/CreateSite` is `netaid:CreateSite`; `rubykaigi.net_aid.SyncService/PullChanges` is `netaid:PullChanges`.
 - RPC method names are therefore unique across all services and name their entity (`CreateCableOrder`, not `CreateOrder`). A spec walking the routes asserts uniqueness (004).
-- A statement has an effect (`allow` or `deny`) and action patterns, where `*` matches any run of characters. Deny wins over allow.
+- A statement has an effect (`allow` or `deny`) and either action patterns or, as IAM's `NotAction`, `not_actions` patterns matching every other action. `*` matches any run of characters.
+- As in IAM, the statements of all of an Actor's roles are evaluated together: an action is permitted when a statement allows it and none denies it. An explicit deny in any role wins.
 - Role policies:
 
   | Role | Statements |
   |---|---|
   | `viewer` | allow `netaid:Get*`, `netaid:List*`, `netaid:Lookup*`, `netaid:Bootstrap`, `netaid:PullChanges`, `netaid:Download*` |
-  | `operator` | allow `netaid:*`; deny `netaid:CreateEpisode`, `netaid:UpdateEpisode`, `netaid:CloseEpisode`, `netaid:CreateFleetSnapshot`, `netaid:CreateImport`, `netaid:ApplyImport`, `netaid:Restore*` |
+  | `operator` | allow everything except (`not_actions`) `netaid:CreateEpisode`, `netaid:UpdateEpisode`, `netaid:CloseEpisode`, `netaid:CreateFleetSnapshot`, `netaid:CreateImport`, `netaid:ApplyImport`, `netaid:Restore*` |
   | `admin` | allow `netaid:*` |
   | `exporter` | viewer's, plus allow `netaid:CreateExport` |
 
-- The operator deny list names the admin-only RPCs of 003 and 012 (Episode and branch lifecycle, sheet imports) and every restore. Cable imports (`netaid:ImportCables`, 019) stay allowed. A later spec that adds an admin-only RPC adds it to this list.
+- The operator's `not_actions` name the admin-only RPCs of 003 and 012 (Episode and branch lifecycle, sheet imports) and every restore. Cable imports (`netaid:ImportCables`, 019) stay allowed. A later spec that adds an admin-only RPC adds it to this list. A `not_actions` allow rather than a deny keeps them from an Actor who is both admin and operator (in `ruby-no-kai/rk-noc` and `kaigionrails/infra`).
 - `netaid:GetViewer` and `netaid:RefreshSession` are allowed for everyone, signed in or not.
 - A caller with no recognised role is authenticated but denied every other action (`permission_denied`).
 - Roles are global for now. Per-Episode scoping (e.g. Kaigi on Rails staff writing only `rk26kor`) is expected later. A statement will then gain an optional list of Episodes, and the policy check already receives the Episode a request targets, so controllers do not change.
@@ -286,7 +287,6 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - A himari access token's `credential_id` uses its `client_id` claim (RFC 9068), which equals `aud` for himari. `display_name` falls back to `sub` when the token has no `name` claim.
   - `Actor::USER_AGENT_LIMIT` replaces the constant `ActionLogPayloadable` held, so the Actor and the canonical line truncate alike.
 - 2026-11-08: `Authz::Policy`, `Authz::Statement` and the role statements, `Authenticatable` (bearer tokens) and `Authorizable` in `Api::ApplicationController`, and `Viewer.actor`/`Viewer.roles` on `GetViewer` (through `Api::ViewerResource` and `Api::ActorResource`). Actor tags, `authn_failure`, `authn_issuer` and `authz_denied_action` are on the canonical line through a new `RequestLogContext.add_fields`; `docs/coder/logging.md` and `docs/coder/api.md` describe them.
-  - Deny wins within a role, not across roles: an Actor may perform what any one of its roles permits. Read literally across roles, a person who is both `admin` and `operator` (in `ruby-no-kai/rk-noc` and `kaigionrails/infra`) would lose every admin-only action to the operator's denies. Open point: confirm this reading.
   - `Authorizable` resolves no Episode yet, since no RPC carries a `BranchRef` or `MutationHeader`; `authorization_episode_maybe` returns nil until 004 adds them, and the `episode` tag is set when it returns one.
   - Authorisation runs before request validation, because connect_rpc_rails moves `validate_connect_message!` behind every callback declared above an RPC. An unauthorised caller learns nothing about what a valid request looks like. When `authorization_episode_maybe` starts reading a `BranchRef`, it reads an unvalidated message.
   - The route-walking spec (`spec/proto/rpc_actions_spec.rb`) also asserts that method names are unique across services.
@@ -300,4 +300,5 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - `/auth/developer` sessions have issuer `developer`, last an hour and cannot be refreshed.
   - `filter_parameters` also filters the callback's `code`. No request headers are logged.
   - The `rubykaigi-net/tf/himari/config.ru` item stays open: that file is in another repository. What it must contain is in this spec's Implementation Plan and in `docs/coder/api.md`.
-- 2026-11-08: Implementation complete, except the himari configuration in rubykaigi-net. Open points, all recorded above: the AWS issuer and role ARN to trust, the `authn_failure` values for malformed and not-yet-valid tokens, deny evaluated per role, the sign-out request shape for 005, and that the himari access token must carry `name` and `roles`.
+- 2026-11-08: Implementation complete, except the himari configuration in rubykaigi-net. Open points, all recorded above: the AWS issuer and role ARN to trust, the `authn_failure` values for malformed and not-yet-valid tokens, the sign-out request shape for 005, and that the himari access token must carry `name` and `roles`.
+- 2026-11-08: Review: statements of all roles are pooled and an explicit deny wins, as in IAM. The operator role allows through `not_actions` instead of denying, so an Actor who is also an admin keeps the admin-only actions. `Authz::Statement` gains `not_actions` and becomes a plain class, since Sorbet rejects a keyword `initialize` on a `Data.define`.
