@@ -4,13 +4,15 @@
 require "google/rpc/error_details_pb"
 
 # Adds a google.rpc.RequestInfo holding the request ID to every Connect error a controller renders,
-# so an error a user reports leads to its log lines. Include after ConnectRpcRails::Controller.
+# so an error a user reports leads to its log lines, and records its code for the Completed line.
+# Include after ConnectRpcRails::Controller.
 #
 # @requires_ancestor: ConnectRpcRails::Controller
 # @requires_ancestor: ActionController::Metal
 module ConnectRequestInfo
   #: (ConnectRpcRails::Error) -> void
   private def render_connect_error(error)
+    RequestLogContext.connect_code = error.code.to_s
     request_info = Google::Rpc::RequestInfo.new(request_id: request.request_id.to_s)
 
     super(ConnectRpcRails::Error.new(

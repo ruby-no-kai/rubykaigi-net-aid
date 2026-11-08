@@ -171,13 +171,13 @@ Implementation in progress. Implementors MUST keep this section updated as they 
 ### Checklist
 
 - [x] Add `rails_semantic_logger`; JSON in production, colour text elsewhere, `RAILS_LOG_FORMAT=json` override; `started = false`; `autoload_lib`
-- [ ] `RequestLogContext` and the `on_log` hook (tags on every line; counters on the job perform line)
-- [ ] `RequestLogTagger` middleware (`request_id`)
-- [ ] `HandlerLogTaggable` (`handler` = `netaid:<Method>`)
-- [ ] `ActionLogPayloadable` (`ip`, `user_agent`, `problem_type`, `error_class`, `connect_code`, counters)
-- [ ] `rescue_from_callback.action_controller` and `enqueue.active_job` subscribers
+- [x] `RequestLogContext` and the `on_log` hook (tags on every line; counters on the job perform line)
+- [x] `RequestLogTagger` middleware (`request_id`)
+- [x] `HandlerLogTaggable` (`handler` = `netaid:<Method>`)
+- [x] `ActionLogPayloadable` (`ip`, `user_agent`, `problem_type`, `error_class`, `connect_code`, counters)
+- [x] `rescue_from_callback.action_controller` and `enqueue.active_job` subscribers
 - [ ] `NetAid::ActionControllerLogSubscriber` (level by status, message `Completed <status> <handler>`)
-- [ ] `ConnectRequestInfo#render_connect_error` records `connect_code`
+- [x] `ConnectRequestInfo#render_connect_error` records `connect_code`
 - [ ] `docs/coder/logging.md`: fields, conventions, Logs Insights queries
 - [ ] Specs per piece
 
@@ -185,3 +185,9 @@ Implementation in progress. Implementors MUST keep this section updated as they 
 
 - 2026-11-08: Interview complete.
 - 2026-11-08: Added rails_semantic_logger 5.2. Appenders are declared through `config.rails_semantic_logger.appenders` per environment, since 5.x deprecates `format=`: JSON to STDOUT in production, a colour log file in development and test (plus STDOUT under `rails server` and STDERR in `rails console` in development), with `RAILS_LOG_FORMAT=json` switching development and test to JSON. `autoload_lib` was already on. A shim declares `RSpec::Matchers::Composable` for semantic_logger's RSpec matchers.
+- 2026-11-08: Added `RequestLogContext` (with a `connect_code` attribute beside `rescued_exception`), the `on_log` hook, `RequestLogTagger`, the `rescue_from_callback` and `enqueue.active_job` subscribers, `HandlerLogTaggable`, `ActionLogPayloadable` and `connect_code` recording in `ConnectRequestInfo`, with their specs.
+  - The job Performed line is recognised by its payload's `event_name` of `perform.active_job`.
+  - `HandlerLogTaggable#rpc_action_name_maybe` derives `netaid:<Method>` from the `connect_rpcs` entry of the routed action, for 001's authorisation to reuse. An action serving no RPC (connect_rpc_rails' `connect_unknown_method` catch-all) gets no `handler` tag.
+  - Error fields (`connect_code`, `error_class`, `problem_type`) are omitted when absent rather than logged as null.
+  - rails_semantic_logger swaps the ActiveJob subscriber only when `ActiveJob::Base` is loaded by its `after_initialize`, so without eager loading (development, local test) jobs logged Rails' text lines. The initializer swaps it from `on_load(:active_job)` when the upstream subscriber is still attached.
+  - Only `enqueue.active_job` is counted, as specified. `enqueue_at.active_job` (`set(wait:)`) and `enqueue_all.active_job` (`perform_all_later`) are not counted in `jobs_enqueued`.
