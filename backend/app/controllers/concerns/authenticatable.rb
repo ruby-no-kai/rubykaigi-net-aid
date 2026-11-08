@@ -22,6 +22,27 @@ module Authenticatable
     authenticated_as(actor) if actor
   end
 
+  # The caller, or nil for an anonymous request.
+  #: () -> Actor?
+  private def current_actor_maybe = Current.actor_maybe
+
+  #: () -> Actor
+  private def current_actor = Must.because(current_actor_maybe) { "authorize_rpc! refuses anonymous callers before the action" }
+
+  # The browser session the request's cookie holds, or nil when it holds none.
+  #: () -> Authn::BrowserSession?
+  private def current_browser_session_maybe
+    return @current_browser_session if defined?(@current_browser_session)
+
+    @current_browser_session = Authn::BrowserSession.load(session) #: Authn::BrowserSession?
+  end
+
+  #: (Authn::BrowserSession) -> void
+  private def store_browser_session(browser_session)
+    browser_session.store(session)
+    @current_browser_session = browser_session
+  end
+
   #: (Actor) -> void
   private def authenticated_as(actor)
     Current.actor = actor
@@ -35,7 +56,7 @@ module Authenticatable
 
   #: () -> Actor?
   private def session_actor_maybe
-    browser_session = Authn::BrowserSession.load(session)
+    browser_session = current_browser_session_maybe
     return unless browser_session
 
     if browser_session.expired?

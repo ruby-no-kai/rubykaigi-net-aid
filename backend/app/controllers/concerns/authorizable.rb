@@ -5,6 +5,7 @@
 # after Authenticatable and HandlerLogTaggable.
 #
 # @requires_ancestor: HandlerLogTaggable
+# @requires_ancestor: Authenticatable
 # @requires_ancestor: ActionController::Metal
 module Authorizable
   extend ActiveSupport::Concern
@@ -17,7 +18,7 @@ module Authorizable
   # caller, Errors::PermissionDenied otherwise.
   #: (String action, ?episode: String?) -> void
   private def authorize!(action, episode: nil)
-    actor = Current.actor_maybe
+    actor = current_actor_maybe
     return if Authz::Policy.permit?(actor, action, episode:)
 
     RequestLogContext.add_fields(authz_denied_action: action)

@@ -14,11 +14,11 @@ module Api
 
       #: () -> Rk::NetAid::ViewerServiceRefreshSessionResponse
       def refresh_session
-        browser_session = Authn::BrowserSession.load(session)
+        browser_session = current_browser_session_maybe
         raise Errors::Unauthenticated.new(detail: "The request carries no session to refresh.") unless browser_session
 
         refreshed = Authn::SessionRefresher.new.refresh(browser_session)
-        refreshed.store(session)
+        store_browser_session(refreshed)
         request.session_options[:expire_after] = Rails.configuration.x.authn.session_lifetime
         authenticated_as(refreshed.actor_for(user_agent: request_user_agent))
 
@@ -31,7 +31,7 @@ module Api
 
       #: () -> Rk::NetAid::Viewer
       private def viewer_message
-        actor = Current.actor_maybe
+        actor = current_actor_maybe
         actor ? Api::ViewerResource.new(actor).as_protobuf : Rk::NetAid::Viewer.new(signed_in: false)
       end
     end

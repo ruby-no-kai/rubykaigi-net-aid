@@ -101,7 +101,7 @@ raise Errors::NotFound.new(detail: "No device has the name #{name.inspect}.")
 - `Authorizable` derives the action `netaid:<Method>` from the routed RPC and asks `Authz::Policy.permit?`. An anonymous caller is answered `unauthenticated`, a caller without a role allowing it `permission_denied`. Controllers declare nothing.
 - Role statements live in `app/models/authz/policy.rb`. An admin-only RPC is added to the operator's deny list. `spec/proto/rpc_actions_spec.rb` fails when some routed RPC is allowed for no role, or when two services declare the same method name.
 - Check a further action inside an RPC with `authorize!("netaid:RestoreMutation", episode:)`.
-- Read the caller with `Current.actor`, which raises when there is none, or `Current.actor_maybe`.
+- In a controller, read the caller with `current_actor`, which raises when there is none, or `current_actor_maybe`, and the browser session with `current_browser_session_maybe`. Outside a controller (models, jobs), use `Current.actor` and `Current.actor_maybe`.
 
 Specs mint tokens with `spec/support/authn_helper.rb` (`himari_access_token`, `github_actions_token`, `aws_token`) after `stub_trusted_jwks`, and sign a browser in with `sign_in_as(roles:)`. WebMock blocks every other network call.
 
