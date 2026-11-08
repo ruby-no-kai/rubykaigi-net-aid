@@ -315,25 +315,46 @@ Everything runs on local PostgreSQL; there is no DSQL test cluster. PostgreSQL s
 
 ## Current Status
 
-Interview complete. Implementors MUST keep this section updated as they work.
+Implementation complete.
 
 ### Checklist
 
-- [ ] Spike on local PostgreSQL: toy `Branched` models with `typeid_rails` and client UUIDv7 ids, threaded `Changelog.write`, coalescing with a composite proto field
-- [ ] `db/schema/branches.sql`, `change_sets.sql`, `changes.sql`, `mutations.sql`
-- [ ] `Branch` (`Branch.fleet_main`, `#writable?`, `#plan?`, `#fleet?`)
-- [ ] Read-only `ChangeSet`, `Change`, `Mutation` models
-- [ ] `Branched` concern: id and lineage defaults, `natural_key`, `changelog_resource`, `insert_only!`, `on`, `find_by_natural_key!`, `find_by_lineage`, before-image capture, registration with the context
-- [ ] `Changelog.write`: lazy bump, coalescing and `changed_fields`, ChangeSets and Changes, Mutation journal with stored response, replay and mismatch, duplicate-id race, rejection journalling
-- [ ] `Changelog::Context#insert_all!`
-- [ ] `Changelog::Cursor`
-- [ ] `Errors::BranchNotWritable`, `Errors::ResyncRequired`, `PROBLEM_TYPE_BRANCH_NOT_WRITABLE` and `PROBLEM_TYPE_RESYNC_REQUIRED` (both 412)
-- [ ] Map an escaping `ActiveRecord::SerializationFailure` to Connect `unavailable`
-- [ ] Job Actor propagation (starting Actor serialised into job arguments, else `system`)
-- [ ] `Changelog/BulkWrite` cop
-- [ ] Canonical log line fields and counters (021); `occ_retries` incremented from `DsqlTransactionable#retryable_transaction`
-- [ ] Specs listed under Tests
+- [x] Spike on local PostgreSQL: toy `Branched` models with `typeid_rails` and client UUIDv7 ids, threaded `Changelog.write`, coalescing with a composite proto field
+- [x] `db/schema/branches.sql`, `change_sets.sql`, `changes.sql`, `mutations.sql`
+- [x] `Branch` (`Branch.fleet_main`, `#writable?`, `#plan?`, `#fleet?`)
+- [x] Read-only `ChangeSet`, `Change`, `Mutation` models
+- [x] `Branched` concern: id and lineage defaults, `natural_key`, `changelog_resource`, `insert_only!`, `on`, `find_by_natural_key!`, `find_by_lineage`, before-image capture, registration with the context
+- [x] `Changelog.write`: lazy bump, coalescing and `changed_fields`, ChangeSets and Changes, Mutation journal with stored response, replay and mismatch, duplicate-id race, rejection journalling
+- [x] `Changelog::Context#insert_all!`
+- [x] `Changelog::Cursor`
+- [x] `Errors::BranchNotWritable`, `Errors::ResyncRequired`, `PROBLEM_TYPE_BRANCH_NOT_WRITABLE` and `PROBLEM_TYPE_RESYNC_REQUIRED` (both 412)
+- [x] Map an escaping `ActiveRecord::SerializationFailure` to Connect `unavailable`
+- [x] Job Actor propagation (starting Actor serialised into job arguments, else `system`)
+- [x] `Changelog/BulkWrite` cop
+- [x] Canonical log line fields and counters (021); `occ_retries` incremented from `DsqlTransactionable#retryable_transaction`
+- [x] Specs listed under Tests
 
 ### Updates
 
 - 2026-11-08: Interview complete. Follow-ups outside this spec: 004 and 006 use the opaque `string cursor` and handle `RESYNC_REQUIRED`; 003 and 013 record an opaque branch version instead of a bare `seq`; spec 020 (history and restore) to be written.
+- 2026-11-08: Spike done on local PostgreSQL with toy models in `spec/support/changelog_helper.rb` (`SpikeRack`, `SpikeDevice` with a `belongs_to` and a composite `position` field, insert-only `SpikeScan`) on test-only tables, and their messages built into the descriptor pool at load time. Client-supplied UUIDv7 TypeIDs, `belongs_to` by TypeID, threaded writes on one and two branches, coalescing and `changed_fields` over a message field all work as designed. `lineage` gets the model's TypeID type, so it reads as `<prefix>_...` like `id`.
+- 2026-11-08: Schema and models. Deviation: the `branches.frozen` column is `is_frozen`, because Active Record refuses a `frozen` attribute (`frozen?` clashes with `Object#frozen?`, `DangerousAttributeError`). The proto field stays `frozen`. `Branch.fleet_main` only finds the row; creating Fleet main is left to 003.
+- 2026-11-08: Protos added for what 002 stores before 004 lands: `branch.proto` (`Branch` with `Dataset` and `State`, without `head_seq`/`forked_at_seq`, as seqs never go on the wire), `mutation.proto` (`MutationHeader`, `Mutation` with `Outcome`), `sync.proto` (`Change` with `Op`, without the entity `oneof`). 004 extends these files. `MutationHeader` carries `map<string, string> base_cursors` instead of 004's draft `map<string, int64> base_seqs`, following the opaque-cursor rule; `Changelog.write` decodes them into `mutations.base_seqs` and leaves out any cursor it cannot read. `mutation_id` is validated as a `mut_` TypeID with a CEL rule.
+- 2026-11-08: `Changelog.write`, `Changelog::Context` (with `insert_all!`), `Changelog::Cursor` and the journal. Notes:
+  - The declared branches are not reloaded at the start of the transaction; only their ids are used, and the bump's `RETURNING state, is_frozen` is the writability check, so an unwritten branch adds nothing to the read set.
+  - `mutations.payload` and `mutations.response` hold the ProtoJSON of a `google.protobuf.Any`, so a stored message names its own type for replay and for 020. `mutations.error` holds the `protobufable.ProblemDetails` the Connect error carries, `information` included.
+  - A replayed rejection is raised as `Changelog::ReplayedRejection`, a `Problem::Detailable` rendering the stored document. A journalled `RecordInvalid` becomes `Errors::InvalidRecord` on the payload's `input` field with proto field names, so a replay of a JSON request names fields in snake_case where the first answer used ProtoJSON names.
+  - A save that changes nothing takes no seq and records no Change. A branch whose only Changes cancel out (created then destroyed) still gets its ChangeSet, keeping `seq` gap-free.
+  - `ordinal` is numbered from 1 per ChangeSet after coalescing.
+  - The after-image is built at the end of the write from a detached copy of the row taken at its last save, so later in-memory edits to the instance do not leak into it.
+  - `Changelog.write` requires `Current.actor` (raising otherwise) and does not nest. A write with a `mutation` requires `rpc:` and `payload:`.
+  - `branch_id` and `lineage` are `attr_readonly` on Branched rows.
+  - Specs that commit are tagged `:committing` (no transactional fixture, tables emptied afterwards). `trigger_dsql_conflict!` raises SQLSTATE 40001 with an OC001 message from PL/pgSQL, which aborts the transaction as DSQL does.
+- 2026-11-08: `Errors::BranchNotWritable` and `Errors::ResyncRequired` with their problem types. `Errors.problem_details_for` builds the `ProblemDetails` both the journal and `ConnectExceptions` use. `ActiveRecord::SerializationFailure` maps to Connect `unavailable` through `map_connect_errors`.
+- 2026-11-08: Logging. `mutation_id` and `mutation_outcome` are payload fields; `occ_retries`, `change_sets_written` and `changes_written` are counters (`RequestLogContext.increment` learns `by:`). Counters are added after the transaction commits, so retried attempts are not counted twice. `problem_type` on the Completed line is read from the problem document, so a replayed rejection reports its stored type.
+- 2026-11-08: Jobs. `ApplicationJob` captures `Current.actor` when the job is built, carries it in the serialized job data (`netaid_actor`), and performs with it as `Current.actor`, or with `Actor.system(<job class>)` when none started it, adding the Actor's tags to the Performed line. A job performed inline restores the caller's `Current.actor`.
+- 2026-11-08: `Changelog/BulkWrite` cop with specs, excluded for `app/models/changelog.rb` and `app/models/changelog/`.
+- 2026-11-08: Implementation complete. Open points for the spec author:
+  - `Errors::BranchNotWritable` is raised during the block, so a write to a preparing branch is journalled as a rejection and its retry with the same `mutation_id` replays the rejection even once the branch is ready. Frozen is permanent, preparing is not.
+  - The cop flags exactly the six listed methods. `insert`, `insert!`, `upsert` and `insert_all!` on a model skip callbacks too but are not flagged; `insert_all!` shares its name with `Changelog::Context#insert_all!`.
+  - `MutationHeader.base_cursors` replaces the `base_seqs` map of 004's draft; 004 and 006 should adopt it.
