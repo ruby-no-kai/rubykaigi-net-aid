@@ -166,7 +166,7 @@ fields @timestamp, message, named_tags.actor_subject, payload.problem_type
 
 ## Current Status
 
-Implementation in progress. Implementors MUST keep this section updated as they work.
+Implementation complete. Implementors MUST keep this section updated as they work.
 
 ### Checklist
 
@@ -176,10 +176,10 @@ Implementation in progress. Implementors MUST keep this section updated as they 
 - [x] `HandlerLogTaggable` (`handler` = `netaid:<Method>`)
 - [x] `ActionLogPayloadable` (`ip`, `user_agent`, `problem_type`, `error_class`, `connect_code`, counters)
 - [x] `rescue_from_callback.action_controller` and `enqueue.active_job` subscribers
-- [ ] `NetAid::ActionControllerLogSubscriber` (level by status, message `Completed <status> <handler>`)
+- [x] `NetAid::ActionControllerLogSubscriber` (level by status, message `Completed <status> <handler>`)
 - [x] `ConnectRequestInfo#render_connect_error` records `connect_code`
-- [ ] `docs/coder/logging.md`: fields, conventions, Logs Insights queries
-- [ ] Specs per piece
+- [x] `docs/coder/logging.md`: fields, conventions, Logs Insights queries
+- [x] Specs per piece
 
 ### Updates
 
@@ -191,3 +191,7 @@ Implementation in progress. Implementors MUST keep this section updated as they 
   - Error fields (`connect_code`, `error_class`, `problem_type`) are omitted when absent rather than logged as null.
   - rails_semantic_logger swaps the ActiveJob subscriber only when `ActiveJob::Base` is loaded by its `after_initialize`, so without eager loading (development, local test) jobs logged Rails' text lines. The initializer swaps it from `on_load(:active_job)` when the upstream subscriber is still attached.
   - Only `enqueue.active_job` is counted, as specified. `enqueue_at.active_job` (`set(wait:)`) and `enqueue_all.active_job` (`perform_all_later`) are not counted in `jobs_enqueued`.
+- 2026-11-08: Added `NetAid::ActionControllerLogSubscriber`, swapped in from `config.after_initialize`, and `docs/coder/logging.md`. The message takes the handler from `RequestLogContext`'s `handler` tag, so it always matches the tag, and names `controller#action` for a request routed to no RPC (`/up`, the unknown-method catch-all). A request spec asserts the whole Completed line of `GetViewer`.
+- 2026-11-08: Implementation complete. Every deliverable has a spec. Open points:
+  - rails_semantic_logger still writes its own info line for each `rescue_from_callback` (`rescue_from handled <class>`), beside the Completed line. It carries the exception message and first backtrace frame, which the Completed line does not.
+  - SemanticLogger writes from a background appender thread. Whether Lambda (007) needs `SemanticLogger.sync!` so lines are not held across a frozen invocation is left to 007.

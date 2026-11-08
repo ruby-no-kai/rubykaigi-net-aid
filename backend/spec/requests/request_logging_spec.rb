@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "rails_helper"
+require "semantic_logger/test/capture_log_events"
 
 RSpec.describe "Request logging" do
   let(:rpc) { connect_method("ViewerService", "GetViewer") }
@@ -41,5 +42,34 @@ RSpec.describe "Request logging" do
 
     expect(response).to have_http_status(:not_found)
     expect(tags.keys).to eq([:request_id])
+  end
+
+  describe "the Completed line" do
+    let(:logger) { SemanticLogger::Test::CaptureLogEvents.new }
+    let(:rpc) { connect_method("ViewerService", "GetViewer") }
+
+    before do
+      allow(Api::Viewer::ViewersController).to receive(:logger).and_return(logger)
+    end
+
+    def completed_line = logger.events.find { it.message.start_with?("Completed") }
+
+    it "carries the handler, status and outcome" do
+      connect_call(rpc, Rk::NetAid::ViewerServiceGetViewerRequest.new, headers: {"User-Agent" => "RSpec"})
+
+      log = completed_line
+      expect(log.message).to eq("Completed 200 netaid:GetViewer")
+      expect(log.level).to eq(:info)
+      expect(log.named_tags).to include(handler: "netaid:GetViewer", request_id: be_present)
+      expect(log.payload).to include(status: 200, user_agent: "RSpec", connect_method: "rubykaigi.net_aid.ViewerService/GetViewer")
+    end
+
+    it "carries the Connect code of a refused call" do
+      connect_call(rpc, Rk::NetAid::ViewerServiceGetViewerRequest.new, headers: {"Sec-Fetch-Site" => "cross-site"})
+
+      log = completed_line
+      expect(log.message).to eq("Completed 403 netaid:GetViewer")
+      expect(log.payload).to include(connect_code: "permission_denied", error_class: "ConnectRpcRails::Error")
+    end
   end
 end

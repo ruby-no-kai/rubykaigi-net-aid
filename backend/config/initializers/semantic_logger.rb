@@ -35,3 +35,11 @@ Rails.application.config.after_initialize do
     RailsSemanticLogger.swap_subscriber(ActiveJob::LogSubscriber, RailsSemanticLogger::ActiveJob::LogSubscriber, :active_job)
   end
 end
+
+Rails.application.config.after_initialize do
+  RailsSemanticLogger.swap_subscriber(
+    RailsSemanticLogger::ActionController::LogSubscriber,
+    NetAid::ActionControllerLogSubscriber,
+    :action_controller,
+  )
+end
