@@ -71,6 +71,7 @@ RSpec/MultipleMemoizedHelpers:
 
 require:
   - ./rubocop/transaction_occ_awareness.rb
+  - ./rubocop/changelog_bulk_write.rb
   - ./rubocop/net_http.rb
 
 # Gems may use Net::HTTP; the app goes through HTTPX.
@@ -81,6 +82,12 @@ Dsql/TransactionOccAwareness:
   Enabled: true
   Exclude:
     - app/models/concerns/dsql_transactionable.rb
+
+Changelog/BulkWrite:
+  Enabled: true
+  Exclude:
+    - app/models/changelog.rb
+    - app/models/changelog/**/*
 
 AllCops:
   SuggestExtensions: false
