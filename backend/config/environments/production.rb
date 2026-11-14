@@ -62,6 +62,9 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [:id]
 
+  # Browser sign-in cannot work without it, so its absence fails boot.
+  config.x.authn.session_client_secret = ENV.fetch("NET_AID_HIMARI_CLIENT_SECRET")
+
   # Enable DNS rebinding protection and other `Host` header attacks.
   # config.hosts = [
   #   "example.com",     # Allow requests from example.com

@@ -129,7 +129,7 @@ The himari clients are configured in `rubykaigi-net/tf/himari/config.ru`, outsid
 - An AuthorizationRule for the three: `mint_jwt_access_token = true`, access tokens of 1 hour and refresh tokens of 14 days, and a `roles` claim from GitHub teams (`ruby-no-kai/rk-noc` admin, `kaigionrails/infra` operator, `ruby-no-kai/rk-orgz` and `ruby-no-kai/rkNN-orgz` viewer).
 - The Actor is read from the access token, never the ID token, so the access token must carry `name` and `roles`.
 
-The backend reads the `net-aid` client secret from `NET_AID_HIMARI_CLIENT_SECRET` (`net-aid-local`'s in development).
+The backend reads the `net-aid` client secret from `NET_AID_HIMARI_CLIENT_SECRET` (`net-aid-local`'s in development). Production refuses to boot without it.
 
 ## Browser protection
 
