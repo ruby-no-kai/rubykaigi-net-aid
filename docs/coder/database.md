@@ -141,7 +141,7 @@ DSQL uses optimistic concurrency control: there are no lock waits, and a transac
 
 Open every transaction with one of the `DsqlTransactionable` helpers (included in `ApplicationRecord`). A RuboCop cop (`Dsql/TransactionOccAwareness`, see [rubocop.md](rubocop.md)) rejects bare `transaction` and `with_lock`.
 
-- `retryable_transaction` retries OCC conflicts with jittered exponential backoff. The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
+- `retryable_transaction` retries OCC conflicts, and the victims of a PostgreSQL deadlock, with jittered exponential backoff. The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
 - `non_idempotent_transaction` does not retry. Use it when the block has external side effects or depends on data read before it.
 
 ```ruby
@@ -208,7 +208,7 @@ end
 - Bulk inserts go through `Changelog.current.insert_all!(records)`, which validates each record and records its Change. `Changelog/BulkWrite` rejects the Active Record writes that skip callbacks (`insert_all`, `insert`, `upsert`, `update_all`, `delete_all`, `delete`, `update_columns`, `touch`, `update_counters`, and the like) elsewhere; disable it inline for a table that is not branched.
 - A write of N rows mutates about 2N rows. Chunk large writes at about 1,000 rows per `Changelog.write`, under DSQL's 3,000 rows and 10 MiB per transaction.
 
-Every write to a branch updates its `branches` row to take the next `seq`, so writers of one branch conflict and commit one at a time. That is what keeps each branch's `seq` gap-free in commit order on DSQL.
+Every write to a branch updates its `branches` row to take the next `seq`, so writers of one branch conflict and commit one at a time. That is what keeps each branch's `seq` gap-free in commit order on DSQL. On PostgreSQL the update takes a row lock instead, so a write touching two branches in the opposite order to another can deadlock. PostgreSQL aborts one of them, and its retry takes the seqs of the branches its failed attempt wrote up front, in id order.
 
 `change_sets`, `changes` and `mutations` are append-only: `app_user` may only select and insert them.
 

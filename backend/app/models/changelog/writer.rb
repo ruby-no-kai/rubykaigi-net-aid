@@ -15,6 +15,7 @@ class Changelog::Writer
     @branches = branches
     @rpc = rpc
     @payload = payload
+    @last_context = nil #: Changelog::Context?
   end
 
   #: [T] () { (Changelog::Context) -> T } -> Changelog::Result
@@ -62,6 +63,11 @@ class Changelog::Writer
     begin
       ApplicationRecord.retryable_transaction do
         context = Changelog::Context.new(branches: @branches)
+        # Taking the seqs locks the branches' rows on PostgreSQL. A retry takes those the failed
+        # attempt wrote up front in id order, so two writers that deadlocked do not deadlock again.
+        previous = @last_context
+        previous.written_branch_ids.sort.each { context.seq_for(it) } if previous
+        @last_context = context
         Changelog.with_context(context) do
           response = run_block(context, &block)
           stats = context.flush!(actor:, mutation_id: (mutation_id if @header))

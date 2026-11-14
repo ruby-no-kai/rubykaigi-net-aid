@@ -46,4 +46,26 @@ RSpec.describe Changelog, :committing, type: :model do
     end
     expect(ChangeSet.on(plan).pluck(:actor_subject)).to all(eq("github_1"))
   end
+
+  it "recovers two writers that lock two branches in opposite orders" do
+    taken = [Queue.new, Queue.new]
+    attempts = [0, 0]
+
+    in_threads(2) do |i|
+      order = i.zero? ? [plan, fleet] : [fleet, plan]
+      described_class.write(mutation: nil, branches: order) do
+        attempts[i] += 1
+        first, second = order
+        SpikeRack.create!(branch: first, name: "t#{i}")
+        if attempts[i] == 1
+          taken[i].push(true)
+          taken[1 - i].pop
+        end
+        SpikeRack.create!(branch: second, name: "t#{i}")
+      end
+    end
+
+    expect(attempts.sum).to eq(3)
+    [plan, fleet].each { expect(ChangeSet.on(it).order(:seq).pluck(:seq)).to eq([1, 2]) }
+  end
 end

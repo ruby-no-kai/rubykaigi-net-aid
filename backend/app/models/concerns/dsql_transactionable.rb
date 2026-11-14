@@ -2,7 +2,8 @@
 # frozen_string_literal: true
 
 # OCC-aware transactions for DSQL, included in ApplicationRecord. DSQL rejects a conflicting
-# transaction at commit instead of waiting on a lock, so idempotent blocks are retried.
+# transaction at commit instead of waiting on a lock, so idempotent blocks are retried, as are
+# PostgreSQL's deadlock victims.
 #
 # @requires_ancestor: ActiveRecord::Base
 module DsqlTransactionable
@@ -16,12 +17,12 @@ module DsqlTransactionable
 
       begin
         transaction(&block)
-      rescue ActiveRecord::SerializationFailure => e
-        if e.dsql_retryable? && attempts < retries
+      rescue ActiveRecord::SerializationFailure, ActiveRecord::Deadlocked => e
+        if (e.is_a?(ActiveRecord::Deadlocked) || e.dsql_retryable?) && attempts < retries
           attempts += 1
           RequestLogContext.increment(:occ_retries)
           sleep_time = base_sleep_seconds * (2**(attempts - 1)) * (0.5 + (0.5 * rand))
-          Rails.logger.warn("DSQL conflict detected, retrying transaction (#{attempts}/#{retries}), waiting #{format("%.2f", sleep_time)}s: #{e.message}")
+          Rails.logger.warn("Transaction conflict detected, retrying transaction (#{attempts}/#{retries}), waiting #{format("%.2f", sleep_time)}s: #{e.message}")
           sleep(sleep_time)
           retry
         else

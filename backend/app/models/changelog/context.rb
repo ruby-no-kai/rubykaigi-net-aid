@@ -26,6 +26,10 @@ class Changelog::Context
     @seqs[branch_id] ||= bump(branch_id)
   end
 
+  # The branches this attempt has taken a seq on.
+  #: () -> Array[String]
+  def written_branch_ids = @seqs.keys
+
   # Cursors of the branches this write produced a ChangeSet on, keyed by branch id.
   #: () -> Hash[String, String]
   def cursors

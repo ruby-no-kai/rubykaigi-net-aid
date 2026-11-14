@@ -485,6 +485,18 @@ RSpec.describe Changelog, :committing, type: :model do
       expect(RequestLogContext.counters[:occ_retries]).to eq(1)
     end
 
+    it "retries the block when PostgreSQL picks it as a deadlock victim" do
+      attempts = 0
+      write do
+        attempts += 1
+        SpikeRack.create!(branch:, name: "r#{attempts}")
+        raise ActiveRecord::Deadlocked, "deadlock detected" if attempts == 1
+      end
+
+      expect(attempts).to eq(2)
+      expect(SpikeRack.pluck(:name)).to eq(%w[r2])
+    end
+
     it "journals nothing when the retries run out" do
       expect { write(mutation: mutation_header) { trigger_dsql_conflict! } }.to raise_error(ActiveRecord::SerializationFailure)
 
