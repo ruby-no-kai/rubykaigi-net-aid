@@ -78,7 +78,7 @@ A job's canonical line is rails_semantic_logger's `Performed` line. `RequestLogC
 Each spec that logs lists what it adds in a "Logging" subsection.
 
 - Tags only identify the request's scope: who, which RPC, which Episode. Add one with `RequestLogContext.add_tags(...)` as soon as it is known.
-- A value describing the request as a whole is a payload field in `ActionLogPayloadable`, snake_case with an area prefix: `authn_failure`, `mutation_outcome`.
+- A value describing the request as a whole is a payload field in `ActionLogPayloadable`, snake_case with an area prefix: `authn_failure`, `mutation_outcome`. An enumerated value is a Symbol (`connect_code: :permission_denied`).
 - A count is a counter, `RequestLogContext.increment(:name)`, named as a plural noun or `<thing>_<past verb>`: `occ_retries`, `changes_written`. Prefer incrementing from an `ActiveSupport::Notifications` subscriber in `config/initializers/semantic_logger.rb`; increment at the call site only when no event exists.
 - Never add a separate log line for something the canonical line can carry.
 - `filter_parameters` does not apply to fields added by code. Never log tokens, cookies or other secrets.

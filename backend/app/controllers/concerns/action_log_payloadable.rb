@@ -34,11 +34,11 @@ module ActionLogPayloadable
     }.compact
   end
 
-  #: (Exception) -> String?
+  #: (Exception) -> Symbol?
   private def problem_type_for(error)
     return unless error.is_a?(Problem::Detailable)
 
     klass = error.class #: as Problem::Detailable::ClassMethods
-    klass.type
+    klass.type&.to_sym
   end
 end

@@ -20,7 +20,7 @@ module ConnectRequestInfo
 
   #: (ConnectRpcRails::Error) -> void
   private def render_connect_error(error)
-    RequestLogContext.connect_code = error.code.to_s
+    RequestLogContext.connect_code = error.code
     request_info = Google::Rpc::RequestInfo.new(request_id: request.request_id.to_s)
 
     super(ConnectRpcRails::Error.new(

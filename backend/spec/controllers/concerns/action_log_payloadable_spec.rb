@@ -79,20 +79,20 @@ RSpec.describe ActionLogPayloadable, type: :controller do
     get :problem
 
     expect(payload).to include(
-      error_class: "Errors::PermissionDenied", problem_type: "permission-denied", connect_code: "permission_denied",
+      error_class: "Errors::PermissionDenied", problem_type: :"permission-denied", connect_code: :permission_denied,
     )
   end
 
   it "adds the problem type of a problem rendered without raising" do
     get :rendered_problem
 
-    expect(payload).to include(problem_type: "failed-precondition", connect_code: "failed_precondition")
+    expect(payload).to include(problem_type: :"failed-precondition", connect_code: :failed_precondition)
   end
 
   it "adds the class and Connect code of a rescued Connect error" do
     get :connect_error
 
-    expect(payload).to include(error_class: "ConnectRpcRails::Error", connect_code: "unavailable")
+    expect(payload).to include(error_class: "ConnectRpcRails::Error", connect_code: :unavailable)
     expect(payload.keys).not_to include(:problem_type)
   end
 end

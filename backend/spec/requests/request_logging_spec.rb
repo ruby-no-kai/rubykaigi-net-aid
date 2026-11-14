@@ -69,7 +69,7 @@ RSpec.describe "Request logging" do
 
       log = completed_line
       expect(log.message).to eq("Completed 403 netaid:GetViewer")
-      expect(log.payload).to include(connect_code: "permission_denied", error_class: "ConnectRpcRails::Error")
+      expect(log.payload).to include(connect_code: :permission_denied, error_class: "ConnectRpcRails::Error")
     end
   end
 end

@@ -97,7 +97,7 @@ Each job execution's canonical line is rails_semantic_logger's own `Performed` l
 Each spec that logs adds a short "Logging" subsection listing what it puts on the canonical line, as 001 and 002 do.
 
 - Tags only for identifiers of the request's scope (who, which RPC, which Episode). A value describing one event is a payload field.
-- Payload fields are snake_case with an area prefix: `authn_failure`, `mutation_outcome`, `export_id`.
+- Payload fields are snake_case with an area prefix: `authn_failure`, `mutation_outcome`, `export_id`. An enumerated value is a Symbol (`connect_code: :permission_denied`).
 - Counters are plural nouns or `<thing>_<past verb>`, unprefixed when generic: `occ_retries`, `changes_written`, `scans_recorded`. They appear only when non-zero.
 - Prefer counting from an `ActiveSupport::Notifications` event; increment at the call site only when there is none.
 - Never add a separate log line for something the canonical line can carry. rails_semantic_logger's `rescue_from handled` line is kept for the exception message and backtrace frame.
@@ -203,3 +203,4 @@ Implementation complete. Implementors MUST keep this section updated as they wor
   - `jobs_enqueued` skips an enqueue that was aborted or failed.
   - The example line shows `connect_method` and omits absent error fields.
 - 2026-11-14: `started = false` moved from `config/application.rb` to the initializer; only the appenders stay in the environment files.
+- 2026-11-14: `connect_code` and `problem_type` are logged as Symbols, as every enumerated payload value is.
