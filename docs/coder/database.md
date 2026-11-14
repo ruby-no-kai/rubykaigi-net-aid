@@ -141,7 +141,7 @@ DSQL uses optimistic concurrency control: there are no lock waits, and a transac
 
 Open every transaction with one of the `DsqlTransactionable` helpers (included in `ApplicationRecord`). A RuboCop cop (`Dsql/TransactionOccAwareness`, see [rubocop.md](rubocop.md)) rejects bare `transaction` and `with_lock`.
 
-- `retryable_transaction` retries OCC conflicts, and the victims of a PostgreSQL deadlock, with jittered exponential backoff. The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
+- `retryable_transaction` retries OCC conflicts, and the victims of a PostgreSQL deadlock, with jittered exponential backoff capped at `DsqlTransactionable::MAX_SLEEP_SECONDS` (2 s, `max_sleep_seconds:` to change). The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
 - `non_idempotent_transaction` does not retry. Use it when the block has external side effects or depends on data read before it.
 
 ```ruby

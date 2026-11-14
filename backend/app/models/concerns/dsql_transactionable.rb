@@ -9,9 +9,12 @@
 module DsqlTransactionable
   extend ActiveSupport::Concern
 
+  # The longest wait before one retry, before jitter.
+  MAX_SLEEP_SECONDS = 2.0 #: Float
+
   module ClassMethods
-    #: [T] (?retries: Integer, ?base_sleep_seconds: Float) { () -> T } -> T
-    def retryable_transaction(retries: 4, base_sleep_seconds: 0.2, &block)
+    #: [T] (?retries: Integer, ?base_sleep_seconds: Float, ?max_sleep_seconds: Float) { () -> T } -> T
+    def retryable_transaction(retries: 4, base_sleep_seconds: 0.2, max_sleep_seconds: MAX_SLEEP_SECONDS, &block)
       #: self as singleton(ActiveRecord::Base)
       attempts = 0
 
@@ -21,7 +24,7 @@ module DsqlTransactionable
         if (e.is_a?(ActiveRecord::Deadlocked) || e.dsql_retryable?) && attempts < retries
           attempts += 1
           RequestLogContext.increment(:occ_retries)
-          sleep_seconds = base_sleep_seconds * (2**(attempts - 1)) * (0.5 + (0.5 * rand))
+          sleep_seconds = [base_sleep_seconds * (2.0**(attempts - 1)), max_sleep_seconds].min * (0.5 + (0.5 * rand))
           Rails.logger.warn("Transaction conflict detected, retrying transaction", {attempts:, retries:, sleep_seconds:}, e)
           sleep(sleep_seconds)
           retry
@@ -39,10 +42,10 @@ module DsqlTransactionable
     end
   end
 
-  #: [T] (?retries: Integer, ?base_sleep_seconds: Float) { () -> T } -> T
-  def retryable_transaction(retries: 4, base_sleep_seconds: 0.2, &block)
+  #: [T] (?retries: Integer, ?base_sleep_seconds: Float, ?max_sleep_seconds: Float) { () -> T } -> T
+  def retryable_transaction(retries: 4, base_sleep_seconds: 0.2, max_sleep_seconds: MAX_SLEEP_SECONDS, &block)
     klass = self.class #: as singleton(ActiveRecord::Base) & DsqlTransactionable::ClassMethods
-    klass.retryable_transaction(retries:, base_sleep_seconds:, &block)
+    klass.retryable_transaction(retries:, base_sleep_seconds:, max_sleep_seconds:, &block)
   end
 
   #: [T] () { () -> T } -> T

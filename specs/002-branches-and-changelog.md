@@ -396,3 +396,4 @@ Implementation complete.
   - `ActorJob`, included in `ApplicationJob`, captures the starting Actor when the job is serialised at enqueue rather than when it is built, and also sets it around `rescue_from`, `retry_on` and `discard_on` handlers. A job performed inline runs as its caller.
   - Every job, `ActiveJob::Base` included, is enqueued after the enclosing transaction commits (`config/initializers/active_job.rb`).
   - `mutation_outcome` is a Symbol: `applied` and `rejected` name the journalled `OUTCOME_APPLIED` and `OUTCOME_REJECTED`. The retry warning of `retryable_transaction` and the unique-violation warning of `Changelog.write` carry the exception as its own field and the attempt as payload, not in the message.
+  - The backoff of `retryable_transaction` is capped at `DsqlTransactionable::MAX_SLEEP_SECONDS` (2 s) before jitter.
