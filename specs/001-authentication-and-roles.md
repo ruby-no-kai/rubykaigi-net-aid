@@ -364,3 +364,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - `NetAid::Http` is gone: `Authn::JwksCache` and `Authn::SessionRefresher` call `HTTPX.with` themselves, with the User-Agent from `config.x.http.user_agent` (`config/initializers/http.rb`).
   - The test environment configures `.invalid` issuers and audience, which `AuthnHelper` reads, so specs carry no real hostnames.
   - A sign-out refused by the origin check logs a warn line naming the reason. The `rubocop:disable Rails/ApplicationController` on `Auth::SessionsController` gives its reason.
+  - The project's RuboCop cops are documented in `docs/coder/rubocop.md`.

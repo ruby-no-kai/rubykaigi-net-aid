@@ -139,7 +139,7 @@ The app and the pre-deploy migration use the same login role, so tables are owne
 
 DSQL uses optimistic concurrency control: there are no lock waits, and a transaction that conflicts with a concurrent commit fails at commit with `OC000`/`OC001`. There is no `SAVEPOINT`, so transactions cannot nest.
 
-Open every transaction with one of the `DsqlTransactionable` helpers (included in `ApplicationRecord`). A RuboCop cop (`Dsql/TransactionOccAwareness`) rejects bare `transaction` and `with_lock`.
+Open every transaction with one of the `DsqlTransactionable` helpers (included in `ApplicationRecord`). A RuboCop cop (`Dsql/TransactionOccAwareness`, see [rubocop.md](rubocop.md)) rejects bare `transaction` and `with_lock`.
 
 - `retryable_transaction` retries OCC conflicts with jittered exponential backoff. The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
 - `non_idempotent_transaction` does not retry. Use it when the block has external side effects or depends on data read before it.

@@ -5,7 +5,7 @@ module Api
   module Viewer
     class ViewersController < Api::Viewer::ApplicationController
       # An expired session is what RefreshSession renews, so it reads the session itself.
-      skip_before_action :authenticate, only: :refresh_session
+      skip_before_action :authenticate, only: :refresh_session, raise: false
 
       #: () -> Rk::NetAid::ViewerServiceGetViewerResponse
       def get_viewer
