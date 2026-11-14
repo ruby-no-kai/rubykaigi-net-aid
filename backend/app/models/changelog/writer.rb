@@ -52,8 +52,8 @@ class Changelog::Writer
 
     log(outcome: Mutation::OUTCOME_APPLIED, stats:)
     Changelog::Result.new(mutation_id: (mutation_id if @header), response:, cursors:)
-  rescue Problem::Detailable, ActiveRecord::RecordInvalid => e
-    raise if request_actor.nil? || e.is_a?(Errors::BranchNotReady)
+  rescue Errors::Rejection, ActiveRecord::RecordInvalid => e
+    raise if request_actor.nil?
 
     ApplicationRecord.retryable_transaction do
       journal(request_actor, outcome: Mutation::OUTCOME_REJECTED, error: problem_json(e))
@@ -105,12 +105,11 @@ class Changelog::Writer
     seqs
   end
 
-  #: (Exception) -> Hash[String, untyped]
+  #: (Errors::Rejection | ActiveRecord::RecordInvalid) -> Hash[String, untyped]
   private def problem_json(error)
     problem = case error
     when ActiveRecord::RecordInvalid then invalid_record_for(error)
-    when Problem::Detailable then error
-    else raise ArgumentError, "#{error.class} is not a rejection"
+    else Must.be_a(error, Errors::ApiError)
     end
     details = Errors.problem_details_for(problem)
     JSON.parse(Protobufable::ProblemDetails.encode_json(details, preserve_proto_fieldnames: true))

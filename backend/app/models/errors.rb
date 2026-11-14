@@ -39,6 +39,12 @@ module Errors
     def self.problem_type_annotation = "rubykaigi.net_aid.problem_type"
   end
 
+  # A problem that follows from the request and the data it names alone, so a retry of the same
+  # request meets it again. Changelog.write journals only these as a Mutation's rejection.
+  #
+  # @requires_ancestor: Errors::ApiError
+  module Rejection; end
+
   # The request carries no credentials an action requires, or credentials that are refused.
   class Unauthenticated < ApiError
     problem_type :PROBLEM_TYPE_UNAUTHENTICATED
@@ -111,6 +117,8 @@ module Errors
 
   # The resource the request names does not exist.
   class NotFound < ApiError
+    include Rejection
+
     problem_type :PROBLEM_TYPE_NOT_FOUND
   end
 
@@ -124,6 +132,8 @@ module Errors
 
   # The resource is not in a state that allows the request.
   class FailedPrecondition < ApiError
+    include Rejection
+
     problem_type :PROBLEM_TYPE_FAILED_PRECONDITION
   end
 
@@ -133,6 +143,7 @@ module Errors
   # google.rpc.BadRequest violation of that field. Any other error, :base included, names no field
   # and concerns the request as a whole.
   class InvalidRecord < ApiError
+    include Rejection
     include Protobufable::Problem::Information
 
     problem_type :PROBLEM_TYPE_INVALID_RECORD
@@ -191,6 +202,11 @@ module Errors
   # The branch a write names is frozen, or is not ready for writes yet.
   class BranchNotWritable < ApiError
     problem_type :PROBLEM_TYPE_BRANCH_NOT_WRITABLE
+  end
+
+  # The branch a write names is frozen.
+  class BranchFrozen < BranchNotWritable
+    include Rejection
   end
 
   # The branch a write names is still being prepared. It becomes writable, so a retry of the same

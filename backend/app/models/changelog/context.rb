@@ -115,7 +115,7 @@ class Changelog::Context
     raise ActiveRecord::RecordNotFound.new("No branch #{branch_id}", "Branch", "id", branch_id) unless row
 
     if ActiveModel::Type::Boolean.new.cast(row.fetch("is_frozen"))
-      raise Errors::BranchNotWritable.new(detail: "The branch #{branch_id} is frozen.")
+      raise Errors::BranchFrozen.new(detail: "The branch #{branch_id} is frozen.")
     end
     unless row.fetch("state") == Branch::STATE_READY
       raise Errors::BranchNotReady.new(detail: "The branch #{branch_id} is not ready for writes yet.")

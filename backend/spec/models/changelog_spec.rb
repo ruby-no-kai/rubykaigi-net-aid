@@ -349,7 +349,7 @@ RSpec.describe Changelog, :committing, type: :model do
     it "journals a write to a frozen branch as rejected" do
       branch.update!(is_frozen: true)
 
-      expect { write(mutation: header) { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotWritable)
+      expect { write(mutation: header) { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchFrozen)
       expect(Mutation.sole.outcome).to eq(Mutation::OUTCOME_REJECTED)
     end
 
@@ -361,6 +361,24 @@ RSpec.describe Changelog, :committing, type: :model do
       branch.update!(state: Branch::STATE_READY)
       write(mutation: header) { response(SpikeRack.create!(branch:, name: "r").id) }
       expect(Mutation.sole.outcome).to eq(Mutation::OUTCOME_APPLIED)
+    end
+
+    [
+      Errors::Internal.new(detail: "down"),
+      Errors::ResyncRequired.new(detail: "stale"),
+      Errors::PermissionDenied.new(detail: "no"),
+    ].each do |error|
+      it "journals nothing for #{error.class}, a problem that is not an Errors::Rejection" do
+        expect { write(mutation: header) { raise error } }.to raise_error(error.class)
+
+        expect(Mutation.count).to eq(0)
+      end
+    end
+
+    it "journals a NotFound as rejected" do
+      expect { write(mutation: header) { raise Errors::NotFound } }.to raise_error(Errors::NotFound)
+
+      expect(Mutation.sole.outcome).to eq(Mutation::OUTCOME_REJECTED)
     end
 
     it "journals nothing for a failure that is not a rejection" do
