@@ -52,6 +52,22 @@ RSpec.describe Changelog, :committing, type: :model do
       )
     end
 
+    it "writes no branch of a multi-branch write that fails after writing both" do
+      plan = create_branch(dataset: Branch::DATASET_PLAN)
+
+      expect do
+        write(branches: [plan, branch]) do
+          SpikeRack.create!(branch: plan, name: "p")
+          SpikeRack.create!(branch:, name: "f")
+          raise "bug"
+        end
+      end.to raise_error(RuntimeError)
+
+      expect(ChangeSet.count).to eq(0)
+      expect(SpikeRack.count).to eq(0)
+      expect([plan.reload.head_seq, branch.reload.head_seq]).to eq([0, 0])
+    end
+
     it "keeps the seq gap-free when a ChangeSet ends up with no Changes" do
       write do
         rack = SpikeRack.create!(branch:, name: "r")
@@ -312,6 +328,7 @@ RSpec.describe Changelog, :committing, type: :model do
 
       mutation = Mutation.sole
       expect(mutation.outcome).to eq(Mutation::OUTCOME_REJECTED)
+      expect(mutation.payload_message).to eq(write_request(header))
       expect(mutation.error_details).to have_attributes(
         type: "https://aid.rubykaigi.net/problems/failed-precondition", status: 412, detail: "no",
       )
@@ -393,6 +410,13 @@ RSpec.describe Changelog, :committing, type: :model do
       expect { write(mutation: header, payload: write_request(header, name: "other")) { response } }
         .to raise_error(Errors::MutationIdReused)
       expect(Mutation.count).to eq(1)
+    end
+
+    it "raises Conflict when a mutation_id is reused for another rpc" do
+      write(mutation: header) { response }
+
+      expect { described_class.write(mutation: header, branches: [branch], rpc: "#{ChangelogSpike::RPC}2", payload: write_request(header)) { response } }
+        .to raise_error(Errors::MutationIdReused)
     end
 
     it "raises Conflict when a mutation_id is reused by another actor" do
