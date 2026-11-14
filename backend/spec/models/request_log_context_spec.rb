@@ -79,6 +79,17 @@ RSpec.describe RequestLogContext, type: :model do
     expect { job.perform_later }.to change { described_class.counters[:jobs_enqueued] }.by(1)
   end
 
+  it "does not count a job whose enqueue was aborted" do
+    job = stub_const("AbortedJob", Class.new(ApplicationJob) do
+      before_enqueue { throw :abort }
+      def perform; end
+    end)
+
+    job.perform_later
+
+    expect(described_class.counters).not_to have_key(:jobs_enqueued)
+  end
+
   it "applies to every log line through SemanticLogger's on_log hook" do
     described_class.add_tags(handler: "netaid:GetViewer")
     log = log_with

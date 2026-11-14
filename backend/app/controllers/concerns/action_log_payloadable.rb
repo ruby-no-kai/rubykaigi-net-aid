@@ -26,10 +26,11 @@ module ActionLogPayloadable
   #: () -> Hash[Symbol, untyped]
   private def error_log_payload
     error = RequestLogContext.rescued_exception
+    problem = RequestLogContext.rendered_problem || error
     {
       connect_code: RequestLogContext.connect_code,
       error_class: error&.class&.name,
-      problem_type: (problem_type_for(error) if error)
+      problem_type: (problem_type_for(problem) if problem)
     }.compact
   end
 

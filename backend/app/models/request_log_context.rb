@@ -11,6 +11,7 @@ class RequestLogContext < ActiveSupport::CurrentAttributes
   attribute :counters, default: -> { Hash.new(0) }
   attribute :rescued_exception
   attribute :connect_code
+  attribute :rendered_problem
 
   #: (**untyped) -> void
   def self.add_tags(**new_tags)

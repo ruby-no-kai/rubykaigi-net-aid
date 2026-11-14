@@ -24,7 +24,9 @@ ActiveSupport::Notifications.subscribe("rescue_from_callback.action_controller")
   RequestLogContext.rescued_exception = event.payload[:exception]
 end
 
-ActiveSupport::Notifications.subscribe("enqueue.active_job") { RequestLogContext.increment(:jobs_enqueued) }
+ActiveSupport::Notifications.subscribe("enqueue.active_job") do |event|
+  RequestLogContext.increment(:jobs_enqueued) if event.payload[:job]&.successfully_enqueued?
+end
 
 Rails.application.config.after_initialize do
   # rails_semantic_logger swaps the ActiveJob subscriber only if ActiveJob::Base has loaded by its

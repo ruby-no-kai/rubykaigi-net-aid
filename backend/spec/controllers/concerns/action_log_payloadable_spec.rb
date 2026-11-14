@@ -17,6 +17,10 @@ RSpec.describe ActionLogPayloadable, type: :controller do
       raise Errors::PermissionDenied
     end
 
+    def rendered_problem
+      render_problem_detailable(Errors::FailedPrecondition.new)
+    end
+
     def connect_error
       raise ConnectRpcRails::Error.new(:unavailable, "try later")
     end
@@ -38,6 +42,7 @@ RSpec.describe ActionLogPayloadable, type: :controller do
       get "index" => "api/viewer/application#index"
       get "count" => "api/viewer/application#count"
       get "problem" => "api/viewer/application#problem"
+      get "rendered_problem" => "api/viewer/application#rendered_problem"
       get "connect_error" => "api/viewer/application#connect_error"
     end
   end
@@ -76,6 +81,12 @@ RSpec.describe ActionLogPayloadable, type: :controller do
     expect(payload).to include(
       error_class: "Errors::PermissionDenied", problem_type: "permission-denied", connect_code: "permission_denied",
     )
+  end
+
+  it "adds the problem type of a problem rendered without raising" do
+    get :rendered_problem
+
+    expect(payload).to include(problem_type: "failed-precondition", connect_code: "failed_precondition")
   end
 
   it "adds the class and Connect code of a rescued Connect error" do
