@@ -8,6 +8,8 @@ require "base64"
 class Changelog::Cursor
   VERSION_PREFIX = "v1." #: String
   PATTERN = /\A(?<branch>\h{8}-\h{4}-\h{4}-\h{4}-\h{12}):(?<seq>0|[1-9]\d{0,18})\z/ #: Regexp
+  # The largest bigint, the type of the seq columns.
+  MAX_SEQ = 9_223_372_036_854_775_807 #: Integer
 
   #: Integer
   attr_reader :seq
@@ -36,7 +38,10 @@ class Changelog::Cursor
     match = PATTERN.match(Base64.urlsafe_decode64(payload))
     raise unknown_cursor unless match
 
-    new(branch_uuid: match[:branch].to_s.downcase, seq: Integer(match[:seq], 10))
+    seq = Integer(match[:seq], 10)
+    raise unknown_cursor if seq > MAX_SEQ
+
+    new(branch_uuid: match[:branch].to_s.downcase, seq:)
   rescue ArgumentError
     raise unknown_cursor
   end

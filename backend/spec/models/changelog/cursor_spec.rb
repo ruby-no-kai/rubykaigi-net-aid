@@ -30,4 +30,13 @@ RSpec.describe Changelog::Cursor do
       expect { described_class.decode(cursor, branch_id:) }.to raise_error(Errors::ResyncRequired)
     end
   end
+
+  it "reads the largest bigint seq and requires a resync for one beyond it" do
+    uuid = TypeidRails.to_uuid(branch_id)
+    encode = ->(seq) { "v1.#{Base64.urlsafe_encode64("#{uuid}:#{seq}", padding: false)}" }
+
+    expect(described_class.decode(encode.call((2**63) - 1), branch_id:)).to eq((2**63) - 1)
+    expect { described_class.decode(encode.call(2**63), branch_id:) }.to raise_error(Errors::ResyncRequired)
+    expect { described_class.decode(encode.call(9_999_999_999_999_999_999), branch_id:) }.to raise_error(Errors::ResyncRequired)
+  end
 end
