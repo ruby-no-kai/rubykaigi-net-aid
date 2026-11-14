@@ -88,6 +88,18 @@ RSpec.describe Changelog, :committing, type: :model do
     it "does not nest" do
       expect { write { write { nil } } }.to raise_error(ArgumentError, /does not nest/)
     end
+
+    it "refuses to run inside an open transaction, journalling nothing" do
+      header = mutation_header
+
+      expect do
+        ApplicationRecord.retryable_transaction do
+          write(mutation: header) { raise Errors::FailedPrecondition }
+        end
+      end.to raise_error(Changelog::TransactionOpen)
+      expect(Mutation.count).to eq(0)
+      expect(described_class).not_to be_writing
+    end
   end
 
   describe "Changes" do

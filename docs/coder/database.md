@@ -190,7 +190,7 @@ end
 
 ### Writing
 
-Write branched rows only inside `Changelog.write`, which opens the transaction (a `retryable_transaction`). A save outside it raises `Changelog::NotWriting`.
+Write branched rows only inside `Changelog.write`, which opens the transaction (a `retryable_transaction`). A save outside it raises `Changelog::NotWriting`, and calling it inside a transaction that is already open raises `Changelog::TransactionOpen`.
 
 ```ruby
 Changelog.write(mutation: request.header, branches: [ branch ], rpc: "rubykaigi.net_aid.SiteService/UpdateSite", payload: request) do

@@ -16,6 +16,10 @@ module Changelog
   # A Branched row was saved or destroyed outside a Changelog.write.
   class NotWriting < StandardError; end
 
+  # Changelog.write was called inside a transaction it would join, so a rejection could commit the
+  # caller's writes and a retry would run in an aborted transaction.
+  class TransactionOpen < StandardError; end
+
   # `cursors` maps each branch the write produced a ChangeSet on to its cursor after the write.
   Result = Data.define(:mutation_id, :response, :cursors)
 
@@ -29,6 +33,10 @@ module Changelog
   #|      ?payload: Google::Protobuf::AbstractMessage?) { (Changelog::Context) -> T } -> Changelog::Result
   def self.write(mutation:, branches:, rpc: nil, payload: nil, &block)
     raise ArgumentError, "Changelog.write does not nest" if writing?
+    # A transactional test fixture is not joinable, so a write inside one still opens a savepoint.
+    if ApplicationRecord.connection.current_transaction.joinable?
+      raise TransactionOpen, "Changelog.write opens its own transaction and cannot run inside another"
+    end
 
     writer = Changelog::Writer.new(mutation:, branches:, rpc:, payload:)
     ActiveSupport::IsolatedExecutionState[WRITING_KEY] = true
