@@ -321,7 +321,7 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 - 2026-11-08: Interview complete. Logging moved onto the canonical log line of 021.
 - 2026-11-08: Added the `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt` gems (plus `webmock` for specs); the session middleware follows with the browser sign-in. `Actor`, `Current`, `Authn::Issuer` (subclasses `Himari`, `GithubActions`, `AwsSts`), `Authn::BearerVerifier`, `Authn::JwksCache` and `Authn::MachineRoles` are in.
   - `config.x.authn.machine_roles` is merged in a `config.after_initialize` block of `config/initializers/authn.rb`, since `Authn::MachineRoles` is autoloaded and not yet loadable while the application class body runs.
-  - `config.x.authn.aws_issuers` is empty and the base `aws-sts` mapping has no entry: the rubykaigi account's `sts:GetWebIdentityToken` issuer URL and the role ARN to grant are not known here. Open point: fill both in, or add them through `NET_AID_MACHINE_ROLES` and an environment override.
+  - `config.x.authn.aws_issuers` is empty and the base `aws-sts` mapping has no entry: the rubykaigi account's `sts:GetWebIdentityToken` issuer URL and the role ARN to grant are not known here. Deferred until deploy: fill both in then, or add them through `NET_AID_MACHINE_ROLES` and an environment override.
   - JWKS URLs: himari `/public/jwks`, GitHub `/.well-known/jwks`, AWS `/.well-known/jwks.json` (the path AWS documents for outbound identity federation issuers). The cache refetches a JWKS at most once a minute per issuer.
   - Failure reasons outside the spec's list are folded into it: a malformed token, a disallowed algorithm and a missing required claim report `bad_signature`; a token not yet valid (`nbf`, future `iat`) reports `expired`. Open point: add dedicated values if the distinction matters.
   - The algorithm allowlist stays RS256 and ES256 as specified. `sts:GetWebIdentityToken` also offers ES384, which callers must not choose.
@@ -365,3 +365,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - The test environment configures `.invalid` issuers and audience, which `AuthnHelper` reads, so specs carry no real hostnames.
   - A sign-out refused by the origin check logs a warn line naming the reason. The `rubocop:disable Rails/ApplicationController` on `Auth::SessionsController` gives its reason.
   - The project's RuboCop cops are documented in `docs/coder/rubocop.md`.
+- 2026-11-14: The AWS issuer URL and role ARN to trust are deferred until deploy.
