@@ -94,7 +94,12 @@ raise Errors::NotFound.new(detail: "No device has the name #{name.inspect}.")
 
 ## Browser protection
 
-`ConnectForgeryProtection` refuses POSTs without `Connect-Protocol-Version: 1` and requests whose `Sec-Fetch-Site` or `Origin` names another site, so no CSRF token is needed. Never grant CORS preflights for the API. CloudFront in front of the backend must forward `Connect-Protocol-Version`, `Connect-Timeout-Ms`, `Sec-Fetch-Site` and `Origin`.
+`ConnectForgeryProtection` refuses POSTs without `Connect-Protocol-Version: 1` and requests whose `Sec-Fetch-Site` or `Origin` names another site, so no CSRF token is needed. Never grant CORS preflights for the API.
+
+- Included into `Api::ApplicationController`, it registers `before_action :verify_connect_request_origin!` itself. A controller opts out with `skip_before_action :verify_connect_request_origin!, raise: false`.
+- A missing `Connect-Protocol-Version` is answered as Connect's own protocol error, `invalid_argument` with no problem details, as connect-go answers it.
+- A cross-site or cross-origin request raises `ConnectForgeryProtection::BlockedRequestError`, a `permission-denied` problem (`permission_denied`).
+- Each refusal logs a warning naming its `reason` (`missing_connect_protocol_version`, `cross_site`, `cross_origin`). CloudFront in front of the backend must forward `Connect-Protocol-Version`, `Connect-Timeout-Ms`, `Sec-Fetch-Site` and `Origin`.
 
 ## Testing
 

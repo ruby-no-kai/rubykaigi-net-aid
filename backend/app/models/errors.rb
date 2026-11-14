@@ -24,7 +24,7 @@ module Errors
     problem_type :PROBLEM_TYPE_UNAUTHENTICATED
   end
 
-  # The session may not act on the resource the request names.
+  # The request may not act on the resource it names.
   class PermissionDenied < ApiError
     problem_type :PROBLEM_TYPE_PERMISSION_DENIED
   end

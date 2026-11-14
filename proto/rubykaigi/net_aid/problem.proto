@@ -35,7 +35,8 @@ enum ProblemType {
     http_status: 401
   }];
 
-  // The session is valid but may not act on this resource.
+  // The request may not act on this resource: the session lacks the permission, or a page on
+  // another site sent the request.
   PROBLEM_TYPE_PERMISSION_DENIED = 2 [(problem_type) = {
     uri: "permission-denied"
     http_status: 403

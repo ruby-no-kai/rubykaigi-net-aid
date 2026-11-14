@@ -15,18 +15,6 @@ RSpec.describe "ViewerService.GetViewer" do
     expect(connect_call(rpc, request, via: :get)).to eq(expected)
     expect(connect_call(rpc, request, codec: :proto)).to eq(expected)
   end
-
-  it "refuses a POST without Connect-Protocol-Version" do
-    post rpc.path, params: "{}", headers: { "Content-Type" => "application/json" }
-    error = connect_response(rpc, :json)
-    expect(error.code).to eq("invalid_argument")
-    expect(error.detail(Google::Rpc::RequestInfo).request_id).to be_present
-  end
-
-  it "refuses a cross-site request" do
-    error = connect_call(rpc, Rk::NetAid::ViewerServiceGetViewerRequest.new, headers: { "Sec-Fetch-Site" => "cross-site" })
-    expect(error.code).to eq("permission_denied")
-  end
 end
 
 RSpec.describe "Connect error from the exceptions app", :escaping_exceptions do

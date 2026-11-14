@@ -25,7 +25,8 @@ module Rk
       # The request carries no valid session. Sign in and retry.
       PROBLEM_TYPE_UNAUTHENTICATED: 1
 
-      # The session is valid but may not act on this resource.
+      # The request may not act on this resource: the session lacks the permission, or a page on
+      # another site sent the request.
       PROBLEM_TYPE_PERMISSION_DENIED: 2
 
       # The resource the request names does not exist.
