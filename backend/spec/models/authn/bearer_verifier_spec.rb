@@ -59,7 +59,7 @@ RSpec.describe Authn::BearerVerifier, type: :model do
     end
 
     it "refuses a token for another audience" do
-      expect(failure_of(github_actions_token(aud: "sts.amazonaws.com"))).to eq([:wrong_audience, AuthnHelper::GITHUB_ACTIONS])
+      expect(failure_of(github_actions_token(aud: "https://another-audience.invalid"))).to eq([:wrong_audience, AuthnHelper::GITHUB_ACTIONS])
     end
   end
 

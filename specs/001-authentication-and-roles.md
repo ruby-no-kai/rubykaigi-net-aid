@@ -272,6 +272,7 @@ An agent acting with a person's token writes as that person. History tells it ap
   config.x.authn.audience = "https://aid.rubykaigi.net"
   config.x.authn.github_actions_issuer = "https://token.actions.githubusercontent.com"
   config.x.authn.aws_issuers = %w[https://...] # sts:GetWebIdentityToken issuer of the rubykaigi account
+  # The test environment points the issuers and the audience at .invalid hosts.
   config.x.authn.machine_roles = Authn::MachineRoles.merge(
     {
       "github-actions" => {"repo:ruby-no-kai/rubykaigi-net:ref:refs/heads/master" => %w[exporter]},
@@ -360,3 +361,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - `authn_failure` values are Symbols, as are the `reason` of `Authn::BearerVerifier::Failure` and `Authn::Issuer::IssuerUnavailable`.
   - `Authn::JwksCache` rescues only what fetching and parsing a JWKS raise: HTTPX errors, the socket, TLS and HTTP/2 errors HTTPX hands back unwrapped, and JSON, jwt and OpenSSL parse errors. `Authn::SessionRefresher::Revoked` keeps the verifier's refusal as its cause rather than in its message.
   - `NetAid::Http` is gone: `Authn::JwksCache` and `Authn::SessionRefresher` call `HTTPX.with` themselves, with the User-Agent from `config.x.http.user_agent` (`config/initializers/http.rb`).
+  - The test environment configures `.invalid` issuers and audience, which `AuthnHelper` reads, so specs carry no real hostnames.

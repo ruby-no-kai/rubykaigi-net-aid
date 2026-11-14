@@ -69,7 +69,7 @@ RSpec.describe "Browser sign-in" do
 
       location = URI(response.location)
       query = Rack::Utils.parse_query(location.query)
-      expect("#{location.scheme}://#{location.host}#{location.path}").to eq("https://idp.rubykaigi.net/oidc/authorize")
+      expect("#{location.scheme}://#{location.host}#{location.path}").to eq("#{AuthnHelper::HIMARI}/oidc/authorize")
       expect(query).to include("client_id" => "net-aid", "scope" => "openid offline_access", "code_challenge_method" => "S256")
     end
   end

@@ -35,6 +35,11 @@ Rails.application.configure do
     config.x.authn.session_client_id = "net-aid-local"
     config.x.authn.developer_sign_in = true
   when "test"
+    # Under .invalid, so a spec missing a stub cannot reach a real issuer.
+    config.x.authn.himari_issuer = "https://himari.invalid"
+    config.x.authn.audience = "https://aid.invalid"
+    config.x.authn.github_actions_issuer = "https://github-actions.invalid"
+    config.x.authn.aws_issuers = %w[https://aws-sts.invalid]
     config.x.authn.session_client_secret = "test-secret"
     config.x.authn.developer_sign_in = true
   when "production"

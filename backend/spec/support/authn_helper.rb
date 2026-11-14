@@ -6,10 +6,10 @@ require "httpx/adapters/webmock"
 # Mints bearer tokens signed by test keys, served from stubbed JWKS endpoints of each trusted
 # issuer.
 module AuthnHelper
-  HIMARI = "https://idp.rubykaigi.net"
-  GITHUB_ACTIONS = "https://token.actions.githubusercontent.com"
-  AWS = "https://aws-issuer.tokens.sts.global.api.aws"
-  AUDIENCE = "https://aid.rubykaigi.net"
+  HIMARI = Rails.configuration.x.authn.himari_issuer
+  GITHUB_ACTIONS = Rails.configuration.x.authn.github_actions_issuer
+  AWS = Rails.configuration.x.authn.aws_issuers.fetch(0)
+  AUDIENCE = Rails.configuration.x.authn.audience
 
   # The RFC 9500 test keys, published for tests and never trusted elsewhere.
   def self.rfc9500_key(name) = OpenSSL::PKey.read(Rails.root.join("spec/fixtures/files/rfc9500/#{name}.pem").read)
@@ -104,13 +104,5 @@ end
 RSpec.configure do |config|
   config.include AuthnHelper
 
-  config.around do |example|
-    authn = Rails.configuration.x.authn
-    original = authn.aws_issuers
-    authn.aws_issuers = [AuthnHelper::AWS]
-    Authn::JwksCache.clear
-    example.run
-  ensure
-    authn.aws_issuers = original
-  end
+  config.before { Authn::JwksCache.clear }
 end
