@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 # typed: ignore
 
 # Evaluated by Puma's configuration DSL.

@@ -1,11 +1,73 @@
-# Omakase Ruby styling for Rails
-inherit_gem: { rubocop-rails-omakase: rubocop.yml }
+inherit_gem:
+  rubocop-shopify: rubocop.yml
 
-# Overwrite or add rules to create your own house style
-#
-# # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
-# Layout/SpaceInsideArrayLiteralBrackets:
-#   Enabled: false
+plugins:
+  - rubocop-factory_bot
+  - rubocop-rails
+  - rubocop-rspec
+  - rubocop-rspec_rails
+
+Style/StringLiterals:
+  Enabled: false
+
+Style/SymbolArray:
+  Enabled: false
+
+Style/WordArray:
+  Enabled: false
+
+Style/MethodCallWithArgsParentheses:
+  Enabled: false
+
+Layout/MultilineMethodArgumentLineBreaks:
+  Enabled: false
+
+Layout/SpaceInsideHashLiteralBraces:
+  EnforcedStyle: no_space
+
+Style/ClassMethodsDefinitions:
+  Enabled: false
+
+Style/SingleLineMethods:
+  Enabled: false
+
+Style/InvertibleUnlessCondition:
+  InverseMethods:
+    # disable rubocop-rails rules depending on ActiveSupport methods
+    :include?: ~
+    :exclude?: ~
+
+Style/AccessModifierDeclarations:
+  Enabled: true
+  EnforcedStyle: inline
+
+Style/SpecialGlobalVars:
+  Enabled: false
+
+Style/CaseLikeIf:
+  Enabled: true
+  MinBranchesCount: 2
+
+Style/EmptyCaseCondition:
+  Enabled: false
+
+Lint/NoReturnInBeginEndBlocks:
+  Enabled: false
+
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: start_of_line
+
+Rails/FilePath:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/MultipleMemoizedHelpers:
+  Enabled: false
 
 require:
   - ./rubocop/transaction_occ_awareness.rb
@@ -16,8 +78,11 @@ Dsql/TransactionOccAwareness:
     - app/models/concerns/dsql_transactionable.rb
 
 AllCops:
+  SuggestExtensions: false
   Exclude:
+    # buf output, checked as generated rather than linted.
     - gen/**/*
+    - vendor/**/*
 
 # Inline RBS signatures for Sorbet (`#:`, `#|`).
 Layout/LeadingCommentSpace:

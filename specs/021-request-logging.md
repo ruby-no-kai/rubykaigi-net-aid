@@ -35,8 +35,7 @@ This spec sets up the logging foundation. 001 and 002 add their own tags, fields
     "duration": 41.2,
     "ip": "…",
     "user_agent": "…",
-    "connect_code": null,
-    "problem_type": null,
+    "connect_method": "rubykaigi.net_aid.SiteService/CreateSite",
     "mutation_id": "…",
     "mutation_outcome": "OUTCOME_APPLIED",
     "occ_retries": 1,
@@ -47,7 +46,9 @@ This spec sets up the logging foundation. 001 and 002 add their own tags, fields
 
 - `Started` logs at debug; `Completed` is the one line per request.
 - The level follows the status: 5xx logs at error, everything else at info.
-- The message names the status and the handler, e.g. `Completed 403 netaid:CreateSite`.
+- The message names the status and the handler, e.g. `Completed 403 netaid:CreateSite`, or `controller#action` for a request routed to no RPC (`/up`, the unknown-method catch-all).
+- Error fields (`connect_code`, `problem_type`, `error_class`) are omitted when absent, as counters are.
+- rails_semantic_logger's own `rescue_from handled <class>` line stays beside it for a handled exception, carrying the exception's message and first backtrace frame, which the canonical line leaves out.
 
 ### Tags (`named_tags`)
 
@@ -68,8 +69,9 @@ Describe the request as a whole, on the `Completed` line only.
 |---|---|
 | `ip`, `user_agent` | the request |
 | `params` | rails_semantic_logger's default, filtered by `filter_parameters`; for a Connect JSON request this is the request message |
-| `connect_code` | the Connect error code a controller rendered, when any; recorded in `ConnectRequestInfo#render_connect_error` |
-| `problem_type` | the problem's `type` identifier (`permission-denied`), when the error is `Problem::Detailable` |
+| `connect_method` | connect_rpc_rails' default, the routed `<service>/<method>` |
+| `connect_code` | the Connect error code a controller rendered, when any; recorded in `RequestLogContext.connect_code` by `ConnectRequestInfo#render_connect_error` |
+| `problem_type` | the `type` identifier (`permission-denied`) of the problem the controller rendered, raised or not; recorded in `RequestLogContext.rendered_problem` by `ConnectRequestInfo#render_problem` |
 | `error_class` | the exception handled by `rescue_from`, or the unhandled one |
 | fields added by other specs | e.g. 001's `authn_failure`, 002's `mutation_outcome` |
 
@@ -79,7 +81,7 @@ Count the work a request did, reported only when non-zero.
 
 | Counter | Source |
 |---|---|
-| `jobs_enqueued` | `enqueue.active_job` notification |
+| `jobs_enqueued` | `enqueue.active_job` notification, for a job that was enqueued (not aborted or failed) |
 | counters added by other specs | e.g. 002's `occ_retries`, `changes_written` |
 
 ### Jobs
@@ -88,17 +90,17 @@ Each job execution's canonical line is rails_semantic_logger's own `Performed` l
 
 - The job sets `Current.actor` from the Actor that started it (002) and adds the same Actor tags, so the line carries them.
 - `RequestLogContext.apply` also merges the context's counters into the payload of that line, recognised as the job log subscriber's perform line.
-- The executor resets the context per job, so counters never leak between jobs.
+- The executor resets the context per job, so counters never leak between jobs. A job performed inline (the `:inline` or test adapter's `perform_enqueued_jobs`) runs within the enqueuing request's context, so its counters and tags land on that request's line.
 
 ### Conventions for other specs
 
 Each spec that logs adds a short "Logging" subsection listing what it puts on the canonical line, as 001 and 002 do.
 
 - Tags only for identifiers of the request's scope (who, which RPC, which Episode). A value describing one event is a payload field.
-- Payload fields are snake_case with an area prefix: `authn_failure`, `mutation_outcome`, `export_id`.
+- Payload fields are snake_case with an area prefix: `authn_failure`, `mutation_outcome`, `export_id`. An enumerated value is a Symbol (`connect_code: :permission_denied`).
 - Counters are plural nouns or `<thing>_<past verb>`, unprefixed when generic: `occ_retries`, `changes_written`, `scans_recorded`. They appear only when non-zero.
 - Prefer counting from an `ActiveSupport::Notifications` event; increment at the call site only when there is none.
-- Never add a separate log line for something the canonical line can carry.
+- Never add a separate log line for something the canonical line can carry. rails_semantic_logger's `rescue_from handled` line is kept for the exception message and backtrace frame.
 
 
 ### Querying
@@ -151,36 +153,54 @@ fields @timestamp, message, named_tags.actor_subject, payload.problem_type
 
 ## Implementation Plan
 
-- Gems: `rails_semantic_logger`. JSON formatter to stdout in production; the default colour formatter in development and test, switched to JSON locally with `RAILS_LOG_FORMAT=json`.
+- Gems: `rails_semantic_logger`. Appenders through `config.rails_semantic_logger.appenders`: JSON to STDOUT in production; a colour log file in development and test (plus STDOUT under `rails server` and STDERR in `rails console` in development), switched to JSON with `RAILS_LOG_FORMAT=json`.
 - `config/environments/production.rb`: replace the `TaggedLogging` logger and `log_tags`; keep `config.silence_healthcheck_path`.
-- `config/application.rb`: `config.rails_semantic_logger.started = false`, `config.autoload_lib`.
-- `app/models/request_log_context.rb`: `RequestLogContext < ActiveSupport::CurrentAttributes` with `tags`, `counters`, `rescued_exception`, `add_tags`, `increment`, `apply(log)`, `log_payload`.
+- Configuration lives in `config/initializers/semantic_logger.rb` (`config.rails_semantic_logger.started = false`), except the appenders, which rails_semantic_logger builds before `config/initializers` run and so are declared in `config/environments/*.rb`.
+- `app/models/request_log_context.rb`: `RequestLogContext < ActiveSupport::CurrentAttributes` with `tags`, `counters`, `rescued_exception`, `rendered_problem`, `connect_code`, `add_tags`, `increment`, `apply(log)`, `log_payload`.
 - `config/initializers/semantic_logger.rb`: `SemanticLogger.on_log { RequestLogContext.apply(it) }`; `RequestLogTagger` middleware after `ActionDispatch::RequestId`; subscribers for `rescue_from_callback.action_controller` and `enqueue.active_job`.
 - `app/controllers/concerns/handler_log_taggable.rb`: sets `handler` from the routed RPC, before any other callback.
 - `app/controllers/concerns/action_log_payloadable.rb`: `append_info_to_payload` with the fields above, included in `Api::ApplicationController`.
 - `lib/net_aid/action_controller_log_subscriber.rb`: level by status, `error_class` from an unhandled exception, message `Completed <status> <handler>`; swapped in from `config.after_initialize`.
-- Connect errors: `ConnectRequestInfo#render_connect_error` records `connect_code` in the context for every error a controller renders, problems included. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it records nothing.
+- Connect errors: `ConnectRequestInfo#render_connect_error` records `connect_code` in the context for every error a controller renders, problems included, and `#render_problem` records the problem, so one rendered without raising (`Errors::InvalidRecord` from `RecordInvalid`) still has its `problem_type`. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it records nothing.
 - Job line: `RequestLogContext.apply` merges counters into rails_semantic_logger's job perform line; jobs add Actor tags where they set `Current.actor` (002).
 - `docs/coder/logging.md`: the fields and the query forms.
 - Specs per piece, as in the skill's references: context, `on_log` hook, a tag surviving the callback chain, payload concern per outcome, subscriber level and message, middleware tags in a request spec.
 
 ## Current Status
 
-Interview complete. Implementors MUST keep this section updated as they work.
+Implementation complete. Implementors MUST keep this section updated as they work.
 
 ### Checklist
 
-- [ ] Add `rails_semantic_logger`; JSON in production, colour text elsewhere, `RAILS_LOG_FORMAT=json` override; `started = false`; `autoload_lib`
-- [ ] `RequestLogContext` and the `on_log` hook (tags on every line; counters on the job perform line)
-- [ ] `RequestLogTagger` middleware (`request_id`)
-- [ ] `HandlerLogTaggable` (`handler` = `netaid:<Method>`)
-- [ ] `ActionLogPayloadable` (`ip`, `user_agent`, `problem_type`, `error_class`, `connect_code`, counters)
-- [ ] `rescue_from_callback.action_controller` and `enqueue.active_job` subscribers
-- [ ] `NetAid::ActionControllerLogSubscriber` (level by status, message `Completed <status> <handler>`)
-- [ ] `ConnectRequestInfo#render_connect_error` records `connect_code`
-- [ ] `docs/coder/logging.md`: fields, conventions, Logs Insights queries
-- [ ] Specs per piece
+- [x] Add `rails_semantic_logger`; JSON in production, colour text elsewhere, `RAILS_LOG_FORMAT=json` override; `started = false`; `autoload_lib`
+- [x] `RequestLogContext` and the `on_log` hook (tags on every line; counters on the job perform line)
+- [x] `RequestLogTagger` middleware (`request_id`)
+- [x] `HandlerLogTaggable` (`handler` = `netaid:<Method>`)
+- [x] `ActionLogPayloadable` (`ip`, `user_agent`, `problem_type`, `error_class`, `connect_code`, counters)
+- [x] `rescue_from_callback.action_controller` and `enqueue.active_job` subscribers
+- [x] `NetAid::ActionControllerLogSubscriber` (level by status, message `Completed <status> <handler>`)
+- [x] `ConnectRequestInfo#render_connect_error` records `connect_code`
+- [x] `docs/coder/logging.md`: fields, conventions, Logs Insights queries
+- [x] Specs per piece
 
 ### Updates
 
 - 2026-11-08: Interview complete.
+- 2026-11-08: Added rails_semantic_logger 5.2. Appenders are declared through `config.rails_semantic_logger.appenders` per environment, since 5.x deprecates `format=`: JSON to STDOUT in production, a colour log file in development and test (plus STDOUT under `rails server` and STDERR in `rails console` in development), with `RAILS_LOG_FORMAT=json` switching development and test to JSON. `autoload_lib` was already on. A shim declares `RSpec::Matchers::Composable` for semantic_logger's RSpec matchers.
+- 2026-11-08: Added `RequestLogContext` (with a `connect_code` attribute beside `rescued_exception`), the `on_log` hook, `RequestLogTagger`, the `rescue_from_callback` and `enqueue.active_job` subscribers, `HandlerLogTaggable`, `ActionLogPayloadable` and `connect_code` recording in `ConnectRequestInfo`, with their specs.
+  - The job Performed line is recognised by its payload's `event_name` of `perform.active_job`.
+  - `HandlerLogTaggable#rpc_action_name_maybe` derives `netaid:<Method>` from the `connect_rpcs` entry of the routed action, for 001's authorisation to reuse. An action serving no RPC (connect_rpc_rails' `connect_unknown_method` catch-all) gets no `handler` tag.
+  - Error fields (`connect_code`, `error_class`, `problem_type`) are omitted when absent rather than logged as null.
+  - rails_semantic_logger swaps the ActiveJob subscriber only when `ActiveJob::Base` is loaded by its `after_initialize`, so without eager loading (development, local test) jobs logged Rails' text lines. The initializer swaps it from `on_load(:active_job)` when the upstream subscriber is still attached.
+  - Only `enqueue.active_job` is counted, as specified. `enqueue_at.active_job` (`set(wait:)`) and `enqueue_all.active_job` (`perform_all_later`) are not counted in `jobs_enqueued`.
+- 2026-11-08: Added `NetAid::ActionControllerLogSubscriber`, swapped in from `config.after_initialize`, and `docs/coder/logging.md`. The message takes the handler from `RequestLogContext`'s `handler` tag, so it always matches the tag, and names `controller#action` for a request routed to no RPC (`/up`, the unknown-method catch-all). A request spec asserts the whole Completed line of `GetViewer`.
+- 2026-11-08: Implementation complete. Every deliverable has a spec. Open points:
+  - rails_semantic_logger still writes its own info line for each `rescue_from_callback` (`rescue_from handled <class>`), beside the Completed line. It carries the exception message and first backtrace frame, which the Completed line does not.
+  - SemanticLogger writes from a background appender thread. Whether Lambda (007) needs `SemanticLogger.sync!` so lines are not held across a frozen invocation is left to 007.
+- 2026-11-14: After validation:
+  - The `rescue_from handled` line is kept; the spec now says so.
+  - `problem_type` comes from the problem a controller rendered, so `Errors::InvalidRecord`, rendered from a rescued `RecordInvalid` without being raised, is logged with `invalid-record`.
+  - `jobs_enqueued` skips an enqueue that was aborted or failed.
+  - The example line shows `connect_method` and omits absent error fields.
+- 2026-11-14: `started = false` moved from `config/application.rb` to the initializer; only the appenders stay in the environment files.
+- 2026-11-14: `connect_code` and `problem_type` are logged as Symbols, as every enumerated payload value is.

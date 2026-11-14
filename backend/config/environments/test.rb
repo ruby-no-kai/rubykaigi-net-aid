@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 # typed: strict
 
 # The test environment is used exclusively to run your application's
@@ -18,7 +19,7 @@ Rails.application.configure do
   config.eager_load = ENV["CI"].present?
 
   # Configure public file server for tests with cache-control for performance.
-  config.public_file_server.headers = { "cache-control" => "public, max-age=3600" }
+  config.public_file_server.headers = {"cache-control" => "public, max-age=3600"}
 
   # Show full error reports.
   config.consider_all_requests_local = true
@@ -29,6 +30,13 @@ Rails.application.configure do
 
   # Disable request forgery protection in test environment.
   config.action_controller.allow_forgery_protection = false
+
+  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes. Appenders are built
+  # before config/initializers run, so they are declared here.
+  log_format = ENV.fetch("RAILS_LOG_FORMAT", "color").to_sym
+  config.rails_semantic_logger.appenders do |appenders|
+    appenders.add(file_name: "log/test.log", formatter: log_format)
+  end
 
   # Print deprecation notices to the stderr.
   config.active_support.deprecation = :stderr

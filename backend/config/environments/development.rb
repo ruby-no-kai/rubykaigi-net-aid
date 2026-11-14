@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 # typed: strict
 
 require "active_support/core_ext/integer/time"
@@ -20,13 +21,22 @@ Rails.application.configure do
   # Enable/disable Action Controller caching. By default Action Controller caching is disabled.
   # Run rails dev:cache to toggle Action Controller caching.
   if Rails.root.join("tmp/caching-dev.txt").exist?
-    config.public_file_server.headers = { "cache-control" => "public, max-age=#{2.days.to_i}" }
+    config.public_file_server.headers = {"cache-control" => "public, max-age=#{2.days.to_i}"}
   else
     config.action_controller.perform_caching = false
   end
 
   # Change to :null_store to avoid any caching.
   config.cache_store = :memory_store
+
+  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes. Appenders are built
+  # before config/initializers run, so they are declared here.
+  log_format = ENV.fetch("RAILS_LOG_FORMAT", "color").to_sym
+  config.rails_semantic_logger.appenders do |appenders|
+    appenders.add(file_name: "log/development.log", formatter: log_format)
+    appenders.add_server(formatter: log_format)
+    appenders.add_console(formatter: log_format)
+  end
 
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log

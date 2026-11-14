@@ -13,6 +13,8 @@ module Api
     include Protobufable::Connect::ProblemRescuable
     include ConnectForgeryProtection
     include ConnectRequestInfo
+    include HandlerLogTaggable
+    include ActionLogPayloadable
 
     wrap_parameters false
 
