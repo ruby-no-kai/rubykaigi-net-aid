@@ -107,6 +107,21 @@ RSpec.describe Authn::BearerVerifier, type: :model do
       expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
     end
 
+    it "refuses a key whose alg is outside the allowlist" do
+      stub_jwks("#{AuthnHelper::HIMARI}/public/jwks", keys: [AuthnHelper.ec_p384_key])
+      claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
+      token = sign_token(claims, key: AuthnHelper.ec_p384_key, header: {typ: "at+jwt"})
+
+      expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
+    end
+
+    it "refuses an allowlisted key used with another algorithm" do
+      claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
+      token = sign_token(claims, alg: "RS384", header: {typ: "at+jwt"})
+
+      expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
+    end
+
     it "refuses a token missing a claim its issuer maps" do
       expect(failure_of(github_actions_token(run_id: nil))).to eq(["bad_signature", AuthnHelper::GITHUB_ACTIONS])
     end
@@ -119,6 +134,31 @@ RSpec.describe Authn::BearerVerifier, type: :model do
   describe "signing keys" do
     let(:rotated) { AuthnHelper.other_rsa_key(kid: "rsa-2", use: "sig") }
     let(:rotated_token) { sign_token(JWT.decode(himari_access_token, nil, false).first, key: rotated, header: {typ: "at+jwt"}) }
+
+    describe "a key without alg" do
+      let(:rsa) { JWT::JWK.new(AuthnHelper.rfc9500_key("test_rsa2048"), {kid: "rsa-noalg", use: "sig"}) }
+      let(:ec) { JWT::JWK.new(AuthnHelper.rfc9500_key("test_ecc_p256"), {kid: "ec-noalg", use: "sig"}) }
+      let(:p384) { JWT::JWK.new(OpenSSL::PKey::EC.generate("secp384r1"), {kid: "ec384-noalg", use: "sig"}) }
+      let(:claims) { standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli") }
+
+      before { stub_jwks("#{AuthnHelper::HIMARI}/public/jwks", keys: [rsa, ec, p384]) }
+
+      it "verifies an RSA key as RS256" do
+        expect(verify(sign_token(claims, key: rsa, alg: "RS256", header: {typ: "at+jwt"})).subject).to eq("x")
+      end
+
+      it "verifies a P-256 key as ES256" do
+        expect(verify(sign_token(claims, key: ec, alg: "ES256", header: {typ: "at+jwt"})).subject).to eq("x")
+      end
+
+      it "refuses an RSA key used with another algorithm" do
+        expect(failure_of(sign_token(claims, key: rsa, alg: "RS512", header: {typ: "at+jwt"})).first).to eq("bad_signature")
+      end
+
+      it "refuses a curve outside the allowlist" do
+        expect(failure_of(sign_token(claims, key: p384, alg: "ES384", header: {typ: "at+jwt"})).first).to eq("bad_signature")
+      end
+    end
 
     it "refuses a kid the JWKS lacks" do
       expect(failure_of(rotated_token)).to eq(["unknown_kid", AuthnHelper::HIMARI])

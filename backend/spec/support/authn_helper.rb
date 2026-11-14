@@ -21,6 +21,9 @@ module AuthnHelper
     JWT::JWK.new(rfc9500_key("test_rsa4096"), {kid:, use:, alg: "RS256"}.compact)
   end
 
+  # RFC 9500 has no P-384 key, so this one is generated.
+  def self.ec_p384_key = @ec_p384_key ||= JWT::JWK.new(OpenSSL::PKey::EC.generate("secp384r1"), {kid: "ec384-1", use: "sig", alg: "ES384"})
+
   def stub_jwks(url, keys: [AuthnHelper.rsa_key, AuthnHelper.ec_key])
     stub_request(:get, url).to_return(
       status: 200,
@@ -37,8 +40,7 @@ module AuthnHelper
     }
   end
 
-  def sign_token(claims, key: AuthnHelper.rsa_key, header: {})
-    alg = key[:alg]
+  def sign_token(claims, key: AuthnHelper.rsa_key, alg: key[:alg], header: {})
     JWT.encode(claims, key.signing_key, alg, {kid: key[:kid], typ: "JWT", **header})
   end
 

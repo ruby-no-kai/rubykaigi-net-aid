@@ -61,11 +61,28 @@ module Authn
       key = (JwksCache.find(issuer.jwks_url, kid) if kid.is_a?(String))
       raise Failure.new("unknown_kid", issuer: iss) unless key
 
-      key_alg = key[:alg]
-      algorithms = key_alg ? Issuer::ALGORITHMS & [key_alg] : Issuer::ALGORITHMS
-      encoded.verify_signature!(algorithm: algorithms, key:)
+      algorithm, public_key = verification_for(key)
+      raise Failure.new("bad_signature", issuer: iss) unless public_key && header["alg"] == algorithm
+
+      # A JWK given as the key verifies with its own alg, so only its public key is passed.
+      encoded.verify_signature!(algorithm:, key: public_key)
     rescue JWT::DecodeError
       raise Failure.new("bad_signature", issuer: iss)
+    end
+
+    # The allowlisted algorithm and public key a JWK verifies with, or nil when its type and curve
+    # sign with no allowlisted algorithm or its own `alg` names another.
+    #: (JWT::JWK::KeyBase) -> [String, OpenSSL::PKey::PKey]?
+    private def verification_for(key)
+      algorithm = case key
+      when JWT::JWK::RSA then "RS256"
+      when JWT::JWK::EC then ("ES256" if key[:crv] == "P-256")
+      else return
+      end
+      key_alg = key[:alg]
+      return unless algorithm && Issuer::ALGORITHMS.include?(algorithm) && (key_alg.nil? || key_alg == algorithm)
+
+      [algorithm, key.verify_key]
     end
 
     #: (JWT::EncodedToken, Issuer, iss: String?) -> void
