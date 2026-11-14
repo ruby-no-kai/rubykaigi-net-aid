@@ -124,6 +124,32 @@ RSpec.describe "Browser sign-in" do
     end
   end
 
+  describe "the session cookie" do
+    def session_cookie = Array(response.headers["set-cookie"]).join("\n").lines.find { it.start_with?("__Host-Http-netaid-sess=") }
+
+    it "is not rewritten by a request that only reads the session" do
+      sign_in_as
+      viewer
+
+      expect(session_cookie).to be_nil
+    end
+
+    it "is not set for an anonymous caller" do
+      https!
+      viewer
+
+      expect(session_cookie).to be_nil
+    end
+
+    it "keeps its expiry when a sign-in starts over a signed-in session" do
+      sign_in_as
+      get "/auth/himari", params: {return_to: "/devices"}
+
+      expect(session_cookie).to include("expires=")
+      expect(viewer.signed_in).to be(true)
+    end
+  end
+
   describe "the developer sign-in" do
     it "signs in with the subject, name and roles the form took" do
       https!

@@ -15,7 +15,9 @@ service ViewerService {
   // Refreshes the session's himari tokens and roles. The only RPC that rewrites the session.
   //
   // Call it once after any RPC answers `session-expired`, then retry the calls that failed.
-  // `session-revoked` means the session is cleared and the person signs in again.
+  // `session-revoked` means himari refused the refresh. The session is left as it is, since
+  // another tab's refresh may have just renewed it: call GetViewer, and sign in again if it
+  // still answers `session-expired`.
   rpc RefreshSession(ViewerServiceRefreshSessionRequest) returns (ViewerServiceRefreshSessionResponse);
 }
 

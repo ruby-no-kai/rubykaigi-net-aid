@@ -48,7 +48,9 @@ RSpec.describe "ViewerService.RefreshSession" do
     expect(rotated).to have_been_requested
   end
 
-  it "clears the session when himari refuses the refresh" do
+  def session_cookie_set? = Array(response.headers["set-cookie"]).join("\n").include?("__Host-Http-netaid-sess=")
+
+  it "answers session-revoked when himari refuses the refresh, leaving the cookie alone" do
     sign_in_as
     stub_request(:post, token_url)
       .to_return(status: 400, headers: {"Content-Type" => "application/json"}, body: '{"error":"invalid_grant"}')
@@ -57,15 +59,41 @@ RSpec.describe "ViewerService.RefreshSession" do
 
     expect(error.status).to eq(401)
     expect(problem_type_of(error)).to eq("session-revoked")
-    expect(viewer.signed_in).to be(false)
+    expect(session_cookie_set?).to be(false)
   end
 
-  it "clears the session when the refreshed token names another subject" do
+  it "answers session-revoked when the refreshed token names another subject, leaving the cookie alone" do
     sign_in_as(sub: "github_1")
     stub_grant(roles: %w[admin], sub: "github_2")
 
     expect(problem_type_of(refresh)).to eq("session-revoked")
-    expect(viewer.signed_in).to be(false)
+    expect(session_cookie_set?).to be(false)
+    expect(viewer.actor.subject).to eq("github_1")
+  end
+
+  it "keeps the session another tab's concurrent refresh wrote" do
+    sign_in_as(roles: %w[viewer])
+    stale_cookie = cookies["__Host-Http-netaid-sess"]
+    stub_grant(roles: %w[admin])
+    refresh
+    stub_request(:post, token_url).with(body: hash_including("refresh_token" => "refresh-1"))
+      .to_return(status: 400, headers: {"Content-Type" => "application/json"}, body: '{"error":"invalid_grant"}')
+
+    error = connect_call(rpc, Rk::NetAid::ViewerServiceRefreshSessionRequest.new,
+      headers: {"Cookie" => "__Host-Http-netaid-sess=#{CGI.escape(stale_cookie)}"})
+
+    expect(problem_type_of(error)).to eq("session-revoked")
+    expect(session_cookie_set?).to be(false)
+    expect(viewer).to have_attributes(signed_in: true, roles: %w[admin])
+  end
+
+  it "rewrites the cookie with its expiry" do
+    sign_in_as
+    stub_grant(roles: %w[operator])
+    refresh
+
+    cookie = Array(response.headers["set-cookie"]).join("\n").lines.find { it.start_with?("__Host-Http-netaid-sess=") }
+    expect(cookie).to include("expires=")
   end
 
   it "answers a developer session, which has nothing to refresh, as revoked" do

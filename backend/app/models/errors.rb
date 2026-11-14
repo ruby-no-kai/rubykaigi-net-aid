@@ -44,7 +44,7 @@ module Errors
     problem_type :PROBLEM_TYPE_SESSION_EXPIRED
   end
 
-  # himari refused to refresh the session, which is cleared.
+  # himari refused to refresh the session. The session is left as it is.
   class SessionRevoked < ApiError
     problem_type :PROBLEM_TYPE_SESSION_REVOKED
   end

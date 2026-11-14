@@ -27,7 +27,6 @@ module Auth
 
       reset_session
       browser_session.store(session)
-      request.session_options[:expire_after] = Rails.configuration.x.authn.session_lifetime
       redirect_to return_to
     rescue Authn::BearerVerifier::Failure => e
       RequestLogContext.add_fields(**{authn_failure: e.reason, authn_issuer: e.issuer&.truncate(255)}.compact)

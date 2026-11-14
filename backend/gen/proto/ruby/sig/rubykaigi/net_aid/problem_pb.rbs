@@ -46,7 +46,8 @@ module Rk
       # The session's sign-in has expired. Call ViewerService.RefreshSession once, then retry.
       PROBLEM_TYPE_SESSION_EXPIRED: 8
 
-      # The identity provider refused to refresh the session, which is now cleared. Sign in again.
+      # The identity provider refused to refresh the session. Sign in again, unless GetViewer finds
+      # the session renewed by another tab's refresh.
       PROBLEM_TYPE_SESSION_REVOKED: 9
 
       # A service the server depends on, such as the identity provider, could not be reached. Retry

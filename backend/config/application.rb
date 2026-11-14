@@ -21,6 +21,8 @@ require "action_view/railtie"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
+require_relative "../lib/net_aid/session_cookie_store"
+
 module Netaid
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
@@ -29,7 +31,7 @@ module Netaid
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
-    config.autoload_lib(ignore: %w[assets tasks dsql.rb])
+    config.autoload_lib(ignore: %w[assets tasks dsql.rb net_aid/session_cookie_store.rb])
 
     # Configuration for the application, engines, and railties goes here.
     #
@@ -47,9 +49,14 @@ module Netaid
     # Completed carries everything Started does, so Started logs at debug.
     config.rails_semantic_logger.started = false
 
+    # The absolute cap himari puts on a sign-in through its refresh token's lifetime.
+    config.x.authn.session_lifetime = 14.days
+
     # The browser holds its himari sign-in in an encrypted cookie session, which an API-only app
     # leaves out of the middleware stack.
-    config.session_store :cookie_store, key: "__Host-Http-netaid-sess", path: "/", secure: true, httponly: true, same_site: :lax
+    config.session_store NetAid::SessionCookieStore,
+      key: "__Host-Http-netaid-sess", path: "/", secure: true, httponly: true, same_site: :lax,
+      expire_after: config.x.authn.session_lifetime
     config.middleware.use ActionDispatch::Cookies
     config.middleware.use config.session_store, config.session_options
 
@@ -58,8 +65,6 @@ module Netaid
     # The confidential client the browser signs in through.
     config.x.authn.session_client_id = "net-aid"
     config.x.authn.session_client_secret = ENV.fetch("NET_AID_HIMARI_CLIENT_SECRET", nil)
-    # The absolute cap himari puts on a sign-in through its refresh token's lifetime.
-    config.x.authn.session_lifetime = 14.days
     config.x.authn.developer_sign_in = false
     config.x.authn.audience = "https://aid.rubykaigi.net"
     config.x.authn.github_actions_issuer = "https://token.actions.githubusercontent.com"

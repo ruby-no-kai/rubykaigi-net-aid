@@ -19,12 +19,11 @@ module Api
 
         refreshed = Authn::SessionRefresher.new.refresh(browser_session)
         store_browser_session(refreshed)
-        request.session_options[:expire_after] = Rails.configuration.x.authn.session_lifetime
         authenticated_as(refreshed.actor_for(user_agent: request_user_agent))
 
         Rk::NetAid::ViewerServiceRefreshSessionResponse.new(viewer: viewer_message)
       rescue Authn::SessionRefresher::Revoked
-        reset_session
+        # The session is left as it is, as a refresh in another tab may have just rewritten it.
         RequestLogContext.add_fields(authn_failure: "session_revoked")
         raise Errors::SessionRevoked.new(detail: "The session could not be refreshed. Sign in again.")
       end
