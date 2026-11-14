@@ -2,6 +2,7 @@ inherit_gem:
   rubocop-shopify: rubocop.yml
 
 plugins:
+  - rubocop-factory_bot
   - rubocop-rails
   - rubocop-rspec
   - rubocop-rspec_rails
