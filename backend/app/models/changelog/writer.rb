@@ -40,15 +40,7 @@ class Changelog::Writer
   #: [T] (Actor?) { (Changelog::Context) -> T } -> Changelog::Result
   private def apply(request_actor, &block)
     actor = request_actor || Current.actor
-    response, cursors, stats = ApplicationRecord.retryable_transaction do
-      context = Changelog::Context.new(branches: @branches)
-      Changelog.with_context(context) do
-        response = yield context
-        stats = context.flush!(actor:, mutation_id: (mutation_id if @header))
-        journal(actor, outcome: Mutation::OUTCOME_APPLIED, response: Changelog::AnyJson.dump(response_message(response))) if @header
-        [response, context.cursors, stats]
-      end
-    end
+    response, cursors, stats = transact(actor, &block)
 
     log(outcome: Mutation::OUTCOME_APPLIED, stats:)
     Changelog::Result.new(mutation_id: (mutation_id if @header), response:, cursors:)
@@ -60,6 +52,38 @@ class Changelog::Writer
     end
     log(outcome: Mutation::OUTCOME_REJECTED)
     raise
+  end
+
+  # A unique violation from the block is a row a concurrent write committed first. One more attempt
+  # lets the block see that row and answer with a rejection of its own.
+  #: [T] (Actor) { (Changelog::Context) -> T } -> [T, Hash[String, String], Changelog::Context::Stats]
+  private def transact(actor, &block)
+    retried_duplicate = false #: bool
+    begin
+      ApplicationRecord.retryable_transaction do
+        context = Changelog::Context.new(branches: @branches)
+        Changelog.with_context(context) do
+          response = run_block(context, &block)
+          stats = context.flush!(actor:, mutation_id: (mutation_id if @header))
+          journal(actor, outcome: Mutation::OUTCOME_APPLIED, response: Changelog::AnyJson.dump(response_message(response))) if @header
+          [response, context.cursors, stats]
+        end
+      end
+    rescue Errors::DuplicateRow
+      raise if retried_duplicate
+
+      retried_duplicate = true
+      retry
+    end
+  end
+
+  # Keeps a unique violation from the block apart from one on mutations.id, which perform handles.
+  #: [T] (Changelog::Context) { (Changelog::Context) -> T } -> T
+  private def run_block(context, &block)
+    yield context
+  rescue ActiveRecord::RecordNotUnique => e
+    Rails.logger.warn("Changelog.write met a row a concurrent write committed first: #{e.message}")
+    raise Errors::DuplicateRow.new(detail: "Another request wrote a row with the same key at the same time. Retry the request.")
   end
 
   #: (Mutation, Actor) -> Changelog::Result

@@ -130,6 +130,10 @@ module Errors
   # A mutation_id was reused for a request with another rpc, actor or payload.
   class MutationIdReused < Conflict; end
 
+  # A concurrent write committed a row with a unique key the request also writes. Over Connect it is
+  # `aborted`, which a client retries.
+  class DuplicateRow < Conflict; end
+
   # The resource is not in a state that allows the request.
   class FailedPrecondition < ApiError
     include Rejection

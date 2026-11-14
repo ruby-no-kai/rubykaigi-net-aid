@@ -423,6 +423,53 @@ RSpec.describe Changelog, :committing, type: :model do
     end
   end
 
+  describe "unique-key races" do
+    let(:header) { mutation_header }
+    let(:device_id) { TypeidRails.generate(prefix: "sdev", version: 7) }
+
+    def commit_device_elsewhere
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          Current.actor = actor
+          described_class.write(mutation: nil, branches: [branch]) { SpikeDevice.create!(branch:, id: device_id, name: "other") }
+        end
+      end.join
+    end
+
+    it "retries once so the block can reject the row it now sees" do
+      attempts = 0
+
+      expect do
+        write(mutation: header) do
+          attempts += 1
+          raise Errors::FailedPrecondition.new(detail: "taken") if SpikeDevice.exists?(device_id)
+
+          commit_device_elsewhere if attempts == 1
+          SpikeDevice.create!(branch:, id: device_id, name: "d")
+        end
+      end.to raise_error(Errors::FailedPrecondition)
+
+      expect(attempts).to eq(2)
+      expect(Mutation.sole.outcome).to eq(Mutation::OUTCOME_REJECTED)
+    end
+
+    it "answers DuplicateRow, journalling nothing, when the retry meets the violation again" do
+      attempts = 0
+
+      expect do
+        write(mutation: header) do
+          attempts += 1
+          commit_device_elsewhere if attempts == 1
+          SpikeDevice.create!(branch:, id: device_id, name: "d")
+        end
+      end.to raise_error(Errors::DuplicateRow) { |error| expect(error.to_problem.status).to eq(409) }
+
+      expect(attempts).to eq(2)
+      expect(Mutation.count).to eq(0)
+      expect(SpikeDevice.sole.name).to eq("other")
+    end
+  end
+
   describe "OCC conflicts" do
     it "retries the block on a conflict" do
       attempts = 0
