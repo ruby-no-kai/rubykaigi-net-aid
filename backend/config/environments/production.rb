@@ -31,7 +31,8 @@ Rails.application.configure do
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
   # One JSON document per line on STDOUT, for CloudWatch Logs Insights. Request tags come from
-  # RequestLogTagger and RequestLogContext (config/initializers/semantic_logger.rb).
+  # RequestLogTagger and RequestLogContext (config/initializers/semantic_logger.rb). Appenders are
+  # built before config/initializers run, so they are declared here.
   config.rails_semantic_logger.appenders do |appenders|
     appenders.add(io: $stdout, formatter: :json)
   end

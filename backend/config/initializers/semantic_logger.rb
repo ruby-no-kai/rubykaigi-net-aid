@@ -16,6 +16,9 @@ end
 
 Rails.application.config.middleware.insert_after(ActionDispatch::RequestId, RequestLogTagger)
 
+# Completed carries everything Started does, so Started logs at debug.
+Rails.application.config.rails_semantic_logger.started = false
+
 # on_log runs in the thread that logs, before the line is queued for the appender thread, so
 # RequestLogContext is still visible.
 SemanticLogger.on_log { RequestLogContext.apply(it) }

@@ -155,7 +155,7 @@ fields @timestamp, message, named_tags.actor_subject, payload.problem_type
 
 - Gems: `rails_semantic_logger`. Appenders through `config.rails_semantic_logger.appenders`: JSON to STDOUT in production; a colour log file in development and test (plus STDOUT under `rails server` and STDERR in `rails console` in development), switched to JSON with `RAILS_LOG_FORMAT=json`.
 - `config/environments/production.rb`: replace the `TaggedLogging` logger and `log_tags`; keep `config.silence_healthcheck_path`.
-- `config/application.rb`: `config.rails_semantic_logger.started = false`, `config.autoload_lib`.
+- Configuration lives in `config/initializers/semantic_logger.rb` (`config.rails_semantic_logger.started = false`), except the appenders, which rails_semantic_logger builds before `config/initializers` run and so are declared in `config/environments/*.rb`.
 - `app/models/request_log_context.rb`: `RequestLogContext < ActiveSupport::CurrentAttributes` with `tags`, `counters`, `rescued_exception`, `rendered_problem`, `connect_code`, `add_tags`, `increment`, `apply(log)`, `log_payload`.
 - `config/initializers/semantic_logger.rb`: `SemanticLogger.on_log { RequestLogContext.apply(it) }`; `RequestLogTagger` middleware after `ActionDispatch::RequestId`; subscribers for `rescue_from_callback.action_controller` and `enqueue.active_job`.
 - `app/controllers/concerns/handler_log_taggable.rb`: sets `handler` from the routed RPC, before any other callback.
@@ -202,3 +202,4 @@ Implementation complete. Implementors MUST keep this section updated as they wor
   - `problem_type` comes from the problem a controller rendered, so `Errors::InvalidRecord`, rendered from a rescued `RecordInvalid` without being raised, is logged with `invalid-record`.
   - `jobs_enqueued` skips an enqueue that was aborted or failed.
   - The example line shows `connect_method` and omits absent error fields.
+- 2026-11-14: `started = false` moved from `config/application.rb` to the initializer; only the appenders stay in the environment files.

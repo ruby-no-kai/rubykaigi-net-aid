@@ -29,7 +29,8 @@ Rails.application.configure do
   # Change to :null_store to avoid any caching.
   config.cache_store = :memory_store
 
-  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes.
+  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes. Appenders are built
+  # before config/initializers run, so they are declared here.
   log_format = ENV.fetch("RAILS_LOG_FORMAT", "color").to_sym
   config.rails_semantic_logger.appenders do |appenders|
     appenders.add(file_name: "log/development.log", formatter: log_format)

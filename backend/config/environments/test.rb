@@ -31,7 +31,8 @@ Rails.application.configure do
   # Disable request forgery protection in test environment.
   config.action_controller.allow_forgery_protection = false
 
-  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes.
+  # Colour text, or with RAILS_LOG_FORMAT=json the JSON production writes. Appenders are built
+  # before config/initializers run, so they are declared here.
   log_format = ENV.fetch("RAILS_LOG_FORMAT", "color").to_sym
   config.rails_semantic_logger.appenders do |appenders|
     appenders.add(file_name: "log/test.log", formatter: log_format)
