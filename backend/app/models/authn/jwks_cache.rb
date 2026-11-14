@@ -69,7 +69,10 @@ module Authn
     #: (String) -> JWT::JWK::Set
     private_class_method def self.fetch(url)
       Must.be_a(URI(url), URI::HTTP)
-      response = NetAid::Http.session(timeout: TIMEOUT).get(url, headers: {"accept" => "application/json"})
+      response = HTTPX.with(
+        headers: {"user-agent" => Rails.configuration.x.http.user_agent, "accept" => "application/json"},
+        timeout: {connect_timeout: TIMEOUT, request_timeout: TIMEOUT},
+      ).get(url)
       response.raise_for_status
       JWT::JWK::Set.new(JSON.parse(response.to_s))
     end

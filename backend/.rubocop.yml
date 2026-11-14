@@ -73,7 +73,7 @@ require:
   - ./rubocop/transaction_occ_awareness.rb
   - ./rubocop/net_http.rb
 
-# Gems may use Net::HTTP; the app goes through NetAid::Http.
+# Gems may use Net::HTTP; the app goes through HTTPX.
 NetAid/NetHttp:
   Enabled: true
 

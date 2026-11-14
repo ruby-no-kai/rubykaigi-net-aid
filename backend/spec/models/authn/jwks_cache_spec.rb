@@ -20,7 +20,7 @@ RSpec.describe Authn::JwksCache, type: :model do
   it "fetches with the app's User-Agent" do
     stub_jwks(url)
     described_class.find(url, "rsa-1")
-    expect(a_request(:get, url).with(headers: {"User-Agent" => NetAid::Http::USER_AGENT})).to have_been_made
+    expect(a_request(:get, url).with(headers: {"User-Agent" => Rails.configuration.x.http.user_agent})).to have_been_made
   end
 
   it "raises IssuerUnavailable, keeping the cause, when the issuer answers an error" do

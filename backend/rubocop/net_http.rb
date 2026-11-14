@@ -3,10 +3,10 @@
 module RuboCop
   module Cop
     module NetAid
-      # Flags direct use of Net::HTTP, so outbound requests go through NetAid::Http with its
+      # Flags direct use of Net::HTTP, so outbound requests go through HTTPX with the app's
       # User-Agent and timeouts.
       class NetHttp < RuboCop::Cop::Base
-        MSG = "Use NetAid::Http (HTTPX) instead of Net::HTTP."
+        MSG = "Use HTTPX with config.x.http.user_agent instead of Net::HTTP."
 
         RESTRICT_ON_SEND = %i[require].freeze
 

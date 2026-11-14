@@ -10,21 +10,21 @@ RSpec.describe RuboCop::Cop::NetAid::NetHttp, :config do
   it "flags Net::HTTP" do
     expect_offense(<<~RUBY)
       Net::HTTP.get(uri)
-      ^^^^^^^^^ Use NetAid::Http (HTTPX) instead of Net::HTTP.
+      ^^^^^^^^^ Use HTTPX with config.x.http.user_agent instead of Net::HTTP.
     RUBY
   end
 
   it "flags a constant under Net::HTTP once" do
     expect_offense(<<~RUBY)
       ::Net::HTTP::Post.new(uri)
-      ^^^^^^^^^^^ Use NetAid::Http (HTTPX) instead of Net::HTTP.
+      ^^^^^^^^^^^ Use HTTPX with config.x.http.user_agent instead of Net::HTTP.
     RUBY
   end
 
   it "flags requiring net/http" do
     expect_offense(<<~RUBY)
       require "net/http"
-      ^^^^^^^^^^^^^^^^^^ Use NetAid::Http (HTTPX) instead of Net::HTTP.
+      ^^^^^^^^^^^^^^^^^^ Use HTTPX with config.x.http.user_agent instead of Net::HTTP.
     RUBY
   end
 

@@ -21,7 +21,7 @@ RSpec.describe "ViewerService.RefreshSession" do
   def stub_grant(roles:, refresh_token: "refresh-2", sub: "github_1")
     stub_request(:post, token_url)
       .with(
-        basic_auth: ["net-aid", "test-secret"], headers: {"User-Agent" => NetAid::Http::USER_AGENT},
+        basic_auth: ["net-aid", "test-secret"], headers: {"User-Agent" => Rails.configuration.x.http.user_agent},
         body: {"grant_type" => "refresh_token", "refresh_token" => "refresh-1"},
       )
       .to_return(

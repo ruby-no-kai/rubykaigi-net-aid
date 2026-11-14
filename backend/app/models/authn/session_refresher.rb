@@ -44,7 +44,11 @@ module Authn
     private def request_grant(refresh_token)
       authn = Rails.configuration.x.authn
       uri = Must.be_a(URI("#{authn.himari_issuer}/public/oidc/token"), URI::HTTP)
-      response = NetAid::Http.session(timeout: TIMEOUT)
+      response = HTTPX
+        .with(
+          headers: {"user-agent" => Rails.configuration.x.http.user_agent},
+          timeout: {connect_timeout: TIMEOUT, request_timeout: TIMEOUT},
+        )
         .plugin(:basic_auth)
         .basic_auth(authn.session_client_id, authn.session_client_secret.to_s)
         .post(uri.to_s, form: {"grant_type" => "refresh_token", "refresh_token" => refresh_token})

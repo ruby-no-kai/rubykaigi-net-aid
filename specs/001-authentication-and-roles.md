@@ -253,7 +253,7 @@ An agent acting with a person's token writes as that person. History tells it ap
   - `Authn::BrowserSession`: the session's Actor and himari tokens, read from and written to the cookie session as a `rubykaigi.net_aid.server.BrowserSession` message (`proto/rubykaigi/net_aid/server/browser_session.proto`).
   - `Authn::SessionRefresher`: refreshes the session's tokens with himari, called only by `RefreshSession`.
   - `Authn::Issuer::IssuerUnavailable`: an issuer's JWKS or token endpoint could not be reached.
-- `lib/net_aid/http.rb`: `NetAid::Http.session`, the HTTPX session outbound requests start from, with the app's User-Agent. The `NetAid/NetHttp` cop keeps app code off `Net::HTTP`.
+- `config/initializers/http.rb`: `config.x.http.user_agent`, the User-Agent that `Authn::JwksCache` and `Authn::SessionRefresher` pass to `HTTPX.with` along with their timeouts. The `NetAid/NetHttp` cop keeps app code off `Net::HTTP`.
 - `lib/net_aid/session_cookie_store.rb`: `NetAid::SessionCookieStore`, the encrypted cookie store, writing the `__Host-Http-netaid-sess` cookie only when the session's contents change.
 - `app/controllers/concerns/authenticatable.rb`: `before_action :authenticate`, reading the session first, then `Authorization: Bearer`.
 - `app/controllers/concerns/authorizable.rb`: `before_action :authorize_rpc!`, deriving the action from the routed RPC, and `authorize!` for further checks.
@@ -359,3 +359,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 - 2026-11-14: Review fixes.
   - `authn_failure` values are Symbols, as are the `reason` of `Authn::BearerVerifier::Failure` and `Authn::Issuer::IssuerUnavailable`.
   - `Authn::JwksCache` rescues only what fetching and parsing a JWKS raise: HTTPX errors, the socket, TLS and HTTP/2 errors HTTPX hands back unwrapped, and JSON, jwt and OpenSSL parse errors. `Authn::SessionRefresher::Revoked` keeps the verifier's refusal as its cause rather than in its message.
+  - `NetAid::Http` is gone: `Authn::JwksCache` and `Authn::SessionRefresher` call `HTTPX.with` themselves, with the User-Agent from `config.x.http.user_agent` (`config/initializers/http.rb`).
