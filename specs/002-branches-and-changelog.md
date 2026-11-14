@@ -104,7 +104,7 @@ Each `Changelog.write` reports on the request's canonical line (021). A write wi
 | Field | Kind | Value |
 |---|---|---|
 | `mutation_id` | payload | the request's `mutation_id` |
-| `mutation_outcome` | payload | `OUTCOME_APPLIED`, `OUTCOME_REJECTED`, `replayed` when a stored outcome was returned, `reused` when the `mutation_id` belongs to another request (`Errors::MutationIdReused`), or `failed` when the write raised and journalled nothing |
+| `mutation_outcome` | payload | `applied` or `rejected` as journalled, `replayed` when a stored outcome was returned, `reused` when the `mutation_id` belongs to another request (`Errors::MutationIdReused`), or `failed` when the write raised and journalled nothing |
 | `occ_retries` | counter | OCC and deadlock retries taken by `retryable_transaction` |
 | `change_sets_written` | counter | ChangeSets inserted |
 | `changes_written` | counter | Changes inserted, `insert_all!` included |
@@ -395,3 +395,4 @@ Implementation complete.
 - 2026-11-14: Review fixes.
   - `ActorJob`, included in `ApplicationJob`, captures the starting Actor when the job is serialised at enqueue rather than when it is built, and also sets it around `rescue_from`, `retry_on` and `discard_on` handlers. A job performed inline runs as its caller.
   - Every job, `ActiveJob::Base` included, is enqueued after the enclosing transaction commits (`config/initializers/active_job.rb`).
+  - `mutation_outcome` is a Symbol: `applied` and `rejected` name the journalled `OUTCOME_APPLIED` and `OUTCOME_REJECTED`. The retry warning of `retryable_transaction` and the unique-violation warning of `Changelog.write` carry the exception as its own field and the attempt as payload, not in the message.

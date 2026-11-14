@@ -4,10 +4,12 @@
 # Performs one Changelog.write: replay of a journalled Mutation, or the transaction with its
 # journal entry.
 class Changelog::Writer
-  # mutation_outcome values on the canonical line beside the journalled Mutation::OUTCOME_*.
-  LOG_OUTCOME_REPLAYED = "replayed" #: String
-  LOG_OUTCOME_REUSED = "reused" #: String
-  LOG_OUTCOME_FAILED = "failed" #: String
+  # mutation_outcome values on the canonical line.
+  LOG_OUTCOME_APPLIED = :applied #: Symbol
+  LOG_OUTCOME_REJECTED = :rejected #: Symbol
+  LOG_OUTCOME_REPLAYED = :replayed #: Symbol
+  LOG_OUTCOME_REUSED = :reused #: Symbol
+  LOG_OUTCOME_FAILED = :failed #: Symbol
 
   #: (mutation: Rk::NetAid::MutationHeader?, branches: Array[Branch], rpc: String?,
   #|  payload: Google::Protobuf::AbstractMessage?) -> void
@@ -51,7 +53,7 @@ class Changelog::Writer
     actor = request_actor || Current.actor
     response, cursors, stats = transact(actor, &block)
 
-    log(outcome: Mutation::OUTCOME_APPLIED, stats:)
+    log(outcome: LOG_OUTCOME_APPLIED, stats:)
     Changelog::Result.new(mutation_id: (mutation_id if @header), response:, cursors:)
   rescue Errors::Rejection, ActiveRecord::RecordInvalid => e
     raise if request_actor.nil?
@@ -59,7 +61,7 @@ class Changelog::Writer
     ApplicationRecord.retryable_transaction do
       journal(request_actor, outcome: Mutation::OUTCOME_REJECTED, error: problem_json(e))
     end
-    log(outcome: Mutation::OUTCOME_REJECTED)
+    log(outcome: LOG_OUTCOME_REJECTED)
     raise
   end
 
@@ -96,7 +98,7 @@ class Changelog::Writer
   private def run_block(context, &block)
     yield context
   rescue ActiveRecord::RecordNotUnique => e
-    Rails.logger.warn("Changelog.write met a row a concurrent write committed first: #{e.message}")
+    Rails.logger.warn("Changelog.write met a row a concurrent write committed first", e)
     raise Errors::DuplicateRow.new(detail: "Another request wrote a row with the same key at the same time. Retry the request.")
   end
 
@@ -174,7 +176,7 @@ class Changelog::Writer
     raise ArgumentError, "a Changelog.write with a mutation returns the response message, got #{response.class}"
   end
 
-  #: (outcome: String, ?stats: Changelog::Context::Stats?) -> void
+  #: (outcome: Symbol, ?stats: Changelog::Context::Stats?) -> void
   private def log(outcome:, stats: nil)
     @logged = true
     # The raw id, as the write may have failed on validating it.

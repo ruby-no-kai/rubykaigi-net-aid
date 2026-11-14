@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "rails_helper"
+require "semantic_logger/test/capture_log_events"
 
 RSpec.describe Changelog, :committing, type: :model do
   let(:branch) { create_branch }
@@ -492,6 +493,22 @@ RSpec.describe Changelog, :committing, type: :model do
       expect(Mutation.count).to eq(0)
       expect(SpikeDevice.sole.name).to eq("other")
     end
+
+    it "logs the violation with its exception apart from the message" do
+      logger = SemanticLogger::Test::CaptureLogEvents.new
+      allow(Rails).to receive(:logger).and_return(logger)
+
+      expect do
+        write(mutation: header) do
+          commit_device_elsewhere unless SpikeDevice.exists?(device_id)
+          SpikeDevice.create!(branch:, id: device_id, name: "d")
+        end
+      end.to raise_error(Errors::DuplicateRow)
+
+      event = logger.events.find { it.message == "Changelog.write met a row a concurrent write committed first" }
+      expect(event.level).to eq(:warn)
+      expect(event.exception).to be_a(ActiveRecord::RecordNotUnique)
+    end
   end
 
   describe "OCC conflicts" do
@@ -539,14 +556,14 @@ RSpec.describe Changelog, :committing, type: :model do
       end
 
       expect(RequestLogContext.log_payload).to include(
-        mutation_id: header.mutation_id, mutation_outcome: Mutation::OUTCOME_APPLIED, change_sets_written: 1, changes_written: 2,
+        mutation_id: header.mutation_id, mutation_outcome: :applied, change_sets_written: 1, changes_written: 2,
       )
     end
 
     it "reports a rejection" do
       expect { write(mutation: mutation_header) { raise Errors::FailedPrecondition } }.to raise_error(Errors::FailedPrecondition)
 
-      expect(RequestLogContext.log_payload).to include(mutation_outcome: Mutation::OUTCOME_REJECTED)
+      expect(RequestLogContext.log_payload).to include(mutation_outcome: :rejected)
     end
 
     it "reports a write to a branch still being prepared as failed" do
@@ -555,7 +572,7 @@ RSpec.describe Changelog, :committing, type: :model do
 
       expect { write(mutation: header) { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotReady)
 
-      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: "failed")
+      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: :failed)
     end
 
     it "reports a unique-key race as failed" do
@@ -563,7 +580,7 @@ RSpec.describe Changelog, :committing, type: :model do
 
       expect { write(mutation: header) { raise ActiveRecord::RecordNotUnique, "duplicate key" } }.to raise_error(Errors::DuplicateRow)
 
-      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: "failed")
+      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: :failed)
     end
 
     it "reports a failure that is not a rejection as failed" do
@@ -571,7 +588,7 @@ RSpec.describe Changelog, :committing, type: :model do
 
       expect { write(mutation: header) { raise "bug" } }.to raise_error(RuntimeError)
 
-      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: "failed")
+      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: :failed)
     end
 
     it "reports a reused mutation_id" do
@@ -581,7 +598,7 @@ RSpec.describe Changelog, :committing, type: :model do
 
       expect { write(mutation: header, payload: write_request(header, name: "other")) { response } }.to raise_error(Errors::MutationIdReused)
 
-      expect(RequestLogContext.log_payload).to eq(mutation_id: header.mutation_id, mutation_outcome: "reused")
+      expect(RequestLogContext.log_payload).to eq(mutation_id: header.mutation_id, mutation_outcome: :reused)
     end
 
     it "reports a replay" do
@@ -591,7 +608,7 @@ RSpec.describe Changelog, :committing, type: :model do
 
       write(mutation: header) { response }
 
-      expect(RequestLogContext.log_payload).to eq(mutation_id: header.mutation_id, mutation_outcome: "replayed")
+      expect(RequestLogContext.log_payload).to eq(mutation_id: header.mutation_id, mutation_outcome: :replayed)
     end
   end
 end

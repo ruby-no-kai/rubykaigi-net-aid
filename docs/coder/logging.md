@@ -66,7 +66,7 @@ Tags identify the request and apply to every line written after they are set, ne
 | `authn_unavailable_cause` | the exception or HTTP status behind `jwks_unavailable` or `refresh_unavailable` |
 | `authz_denied_action` | the action the policy denied, such as `netaid:CreateSite` |
 | `mutation_id` | the `mutation_id` of the request's `MutationHeader`, for a `Changelog.write` with one |
-| `mutation_outcome` | `OUTCOME_APPLIED`, `OUTCOME_REJECTED`, `replayed` when a stored outcome was returned, `reused` when the `mutation_id` belongs to another request, or `failed` when the write raised and journalled nothing |
+| `mutation_outcome` | `applied` or `rejected` as journalled, `replayed` when a stored outcome was returned, `reused` when the `mutation_id` belongs to another request, or `failed` when the write raised and journalled nothing |
 
 Error fields are absent when the request did not fail. Authentication and authorisation failures answer 4xx, so their lines stay at info. An unreachable issuer answers 503 and logs at error. A token never appears on the line, only the reason it was refused. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it has no `connect_code`.
 
