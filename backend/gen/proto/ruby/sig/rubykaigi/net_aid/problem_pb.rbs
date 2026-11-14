@@ -13,7 +13,7 @@ module Rk
     # `http_status`. Dispatch on `type`: the enum value names themselves never go on the wire.
     # Over Connect, the status selects the error code: 401 is `unauthenticated`, 403
     # `permission_denied`, 404 `not_found`, 409 `aborted`, 412 `failed_precondition`, 422
-    # `invalid_argument` and 500 `internal`. The HTTP response then carries the code's status, so a
+    # `invalid_argument`, 500 `internal` and 503 `unavailable`. The HTTP response then carries the code's status, so a
     # 422 problem arrives as HTTP 400 while its document still reads 422.
     # Values and identifiers are never renamed or reused.
     module ProblemType
@@ -49,6 +49,10 @@ module Rk
       # The identity provider refused to refresh the session, which is now cleared. Sign in again.
       PROBLEM_TYPE_SESSION_REVOKED: 9
 
+      # A service the server depends on, such as the identity provider, could not be reached. Retry
+      # later.
+      PROBLEM_TYPE_UNAVAILABLE: 10
+
       def self.lookup:
           (0 number) -> :PROBLEM_TYPE_UNSPECIFIED
         | (1 number) -> :PROBLEM_TYPE_UNAUTHENTICATED
@@ -60,6 +64,7 @@ module Rk
         | (7 number) -> :PROBLEM_TYPE_INTERNAL
         | (8 number) -> :PROBLEM_TYPE_SESSION_EXPIRED
         | (9 number) -> :PROBLEM_TYPE_SESSION_REVOKED
+        | (10 number) -> :PROBLEM_TYPE_UNAVAILABLE
         | (::int number) -> names?
         | ...
 
@@ -74,14 +79,15 @@ module Rk
         | (:PROBLEM_TYPE_INTERNAL name) -> 7
         | (:PROBLEM_TYPE_SESSION_EXPIRED name) -> 8
         | (:PROBLEM_TYPE_SESSION_REVOKED name) -> 9
+        | (:PROBLEM_TYPE_UNAVAILABLE name) -> 10
         | (::Symbol name) -> numbers?
         | ...
 
-      type names = :PROBLEM_TYPE_UNSPECIFIED | :PROBLEM_TYPE_UNAUTHENTICATED | :PROBLEM_TYPE_PERMISSION_DENIED | :PROBLEM_TYPE_NOT_FOUND | :PROBLEM_TYPE_CONFLICT | :PROBLEM_TYPE_FAILED_PRECONDITION | :PROBLEM_TYPE_INVALID_RECORD | :PROBLEM_TYPE_INTERNAL | :PROBLEM_TYPE_SESSION_EXPIRED | :PROBLEM_TYPE_SESSION_REVOKED
+      type names = :PROBLEM_TYPE_UNSPECIFIED | :PROBLEM_TYPE_UNAUTHENTICATED | :PROBLEM_TYPE_PERMISSION_DENIED | :PROBLEM_TYPE_NOT_FOUND | :PROBLEM_TYPE_CONFLICT | :PROBLEM_TYPE_FAILED_PRECONDITION | :PROBLEM_TYPE_INVALID_RECORD | :PROBLEM_TYPE_INTERNAL | :PROBLEM_TYPE_SESSION_EXPIRED | :PROBLEM_TYPE_SESSION_REVOKED | :PROBLEM_TYPE_UNAVAILABLE
 
-      type strings = "PROBLEM_TYPE_UNSPECIFIED" | "PROBLEM_TYPE_UNAUTHENTICATED" | "PROBLEM_TYPE_PERMISSION_DENIED" | "PROBLEM_TYPE_NOT_FOUND" | "PROBLEM_TYPE_CONFLICT" | "PROBLEM_TYPE_FAILED_PRECONDITION" | "PROBLEM_TYPE_INVALID_RECORD" | "PROBLEM_TYPE_INTERNAL" | "PROBLEM_TYPE_SESSION_EXPIRED" | "PROBLEM_TYPE_SESSION_REVOKED"
+      type strings = "PROBLEM_TYPE_UNSPECIFIED" | "PROBLEM_TYPE_UNAUTHENTICATED" | "PROBLEM_TYPE_PERMISSION_DENIED" | "PROBLEM_TYPE_NOT_FOUND" | "PROBLEM_TYPE_CONFLICT" | "PROBLEM_TYPE_FAILED_PRECONDITION" | "PROBLEM_TYPE_INVALID_RECORD" | "PROBLEM_TYPE_INTERNAL" | "PROBLEM_TYPE_SESSION_EXPIRED" | "PROBLEM_TYPE_SESSION_REVOKED" | "PROBLEM_TYPE_UNAVAILABLE"
 
-      type numbers = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+      type numbers = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
     end
   end
 end

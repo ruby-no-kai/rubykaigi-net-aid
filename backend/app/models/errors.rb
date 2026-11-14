@@ -137,4 +137,12 @@ module Errors
   class Internal < ApiError
     problem_type :PROBLEM_TYPE_INTERNAL
   end
+
+  # A service the server depends on could not be reached.
+  class Unavailable < ApiError
+    problem_type :PROBLEM_TYPE_UNAVAILABLE
+  end
+
+  # himari or another trusted issuer could not be reached to verify or renew credentials.
+  class IssuerUnavailable < Unavailable; end
 end

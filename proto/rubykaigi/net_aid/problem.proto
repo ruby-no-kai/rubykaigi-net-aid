@@ -21,7 +21,7 @@ extend google.protobuf.EnumValueOptions {
 //
 // Over Connect, the status selects the error code: 401 is `unauthenticated`, 403
 // `permission_denied`, 404 `not_found`, 409 `aborted`, 412 `failed_precondition`, 422
-// `invalid_argument` and 500 `internal`. The HTTP response then carries the code's status, so a
+// `invalid_argument`, 500 `internal` and 503 `unavailable`. The HTTP response then carries the code's status, so a
 // 422 problem arrives as HTTP 400 while its document still reads 422.
 //
 // Values and identifiers are never renamed or reused.
@@ -81,5 +81,12 @@ enum ProblemType {
   PROBLEM_TYPE_SESSION_REVOKED = 9 [(problem_type) = {
     uri: "session-revoked"
     http_status: 401
+  }];
+
+  // A service the server depends on, such as the identity provider, could not be reached. Retry
+  // later.
+  PROBLEM_TYPE_UNAVAILABLE = 10 [(problem_type) = {
+    uri: "unavailable"
+    http_status: 503
   }];
 }

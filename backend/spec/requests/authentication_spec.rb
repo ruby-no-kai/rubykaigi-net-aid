@@ -82,6 +82,18 @@ RSpec.describe "Bearer authentication" do
     end
   end
 
+  it "answers unavailable when the issuer's JWKS cannot be fetched" do
+    stub_request(:get, "#{AuthnHelper::HIMARI}/public/jwks").to_timeout
+
+    error = get_viewer(himari_access_token)
+
+    expect(error.code).to eq("unavailable")
+    expect(problem_type_of(error)).to eq("unavailable")
+    expect(completed_line.payload).to include(
+      authn_failure: "jwks_unavailable", authn_unavailable_cause: start_with("Net::OpenTimeout"),
+    )
+  end
+
   it "refuses an Authorization header of another scheme" do
     error = connect_call(rpc, Rk::NetAid::ViewerServiceGetViewerRequest.new, headers: {"Authorization" => "Basic Zm9vOmJhcg=="})
     expect(problem_type_of(error)).to eq("unauthenticated")

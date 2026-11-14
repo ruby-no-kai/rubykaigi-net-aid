@@ -110,6 +110,20 @@ RSpec.describe "Browser sign-in" do
     end
   end
 
+  describe "the himari callback while himari's JWKS cannot be fetched" do
+    it "answers the failure page as unavailable" do
+      logger = SemanticLogger::Test::CaptureLogEvents.new
+      allow(Auth::SessionsController).to receive(:logger).and_return(logger)
+      stub_request(:get, "#{AuthnHelper::HIMARI}/public/jwks").to_return(status: 500, body: "")
+
+      sign_in_as
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: "jwks_unavailable")
+      expect(viewer.signed_in).to be(false)
+    end
+  end
+
   describe "the developer sign-in" do
     it "signs in with the subject, name and roles the form took" do
       https!

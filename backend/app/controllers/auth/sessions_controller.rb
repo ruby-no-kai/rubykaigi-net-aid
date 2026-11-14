@@ -32,6 +32,9 @@ module Auth
     rescue Authn::BearerVerifier::Failure => e
       RequestLogContext.add_fields(**{authn_failure: e.reason, authn_issuer: e.issuer&.truncate(255)}.compact)
       render :failure, status: :unauthorized
+    rescue Authn::IssuerUnavailable => e
+      RequestLogContext.add_fields(**e.log_fields)
+      render :failure, status: :service_unavailable
     end
 
     #: () -> void

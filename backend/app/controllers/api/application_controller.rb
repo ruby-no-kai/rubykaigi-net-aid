@@ -19,6 +19,7 @@ module Api
     wrap_parameters false
 
     rescue_from ActiveRecord::RecordInvalid, with: :render_invalid_record
+    rescue_from Authn::IssuerUnavailable, with: :render_issuer_unavailable
 
     before_action :verify_connect_request_origin!
     include Authenticatable
@@ -32,6 +33,12 @@ module Api
 
       message = Rack::Utils::HTTP_STATUS_CODES.fetch(error.http_status) { error.code.to_s }
       ConnectRpcRails::Error.new(error.code, message, details: error.details)
+    end
+
+    #: (Authn::IssuerUnavailable) -> void
+    private def render_issuer_unavailable(error)
+      RequestLogContext.add_fields(**error.log_fields)
+      render_problem_detailable(Errors::IssuerUnavailable.new(detail: "The identity provider is unavailable. Retry later."))
     end
 
     # A Create or Update request carries its <Resource>Input in a field named `input`, whose fields

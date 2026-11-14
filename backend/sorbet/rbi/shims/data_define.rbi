@@ -30,3 +30,11 @@ class Authn::JwksCache::Entry
   sig { returns(Float) }
   def fetched_at; end
 end
+
+class Authn::JwksCache::Failure
+  sig { returns(StandardError) }
+  def error; end
+
+  sig { returns(Float) }
+  def failed_at; end
+end

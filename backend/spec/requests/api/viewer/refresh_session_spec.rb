@@ -75,12 +75,21 @@ RSpec.describe "ViewerService.RefreshSession" do
     expect(problem_type_of(refresh)).to eq("session-revoked")
   end
 
-  it "fails without clearing the session when himari is unavailable", :escaping_exceptions do
+  it "answers unavailable without clearing the session when himari answers an error" do
     sign_in_as
     stub_request(:post, token_url).to_return(status: 503, body: "")
 
-    expect(refresh.code).to eq("internal")
+    error = refresh
+    expect(error.code).to eq("unavailable")
+    expect(problem_type_of(error)).to eq("unavailable")
     expect(viewer.signed_in).to be(true)
+  end
+
+  it "answers unavailable when himari does not answer" do
+    sign_in_as
+    stub_request(:post, token_url).to_timeout
+
+    expect(problem_type_of(refresh)).to eq("unavailable")
   end
 
   it "answers a caller without a session as unauthenticated" do

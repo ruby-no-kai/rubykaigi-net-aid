@@ -10,3 +10,4 @@ en:
       internal: Internal Error
       session_expired: Session Expired
       session_revoked: Session Revoked
+      unavailable: Service Unavailable

@@ -12,9 +12,8 @@ module Authn
     # himari refused the refresh, or the session holds nothing to refresh with.
     class Revoked < StandardError; end
 
-    # himari answered the refresh in a way other than a grant or a refusal.
-    class Unavailable < StandardError; end
-
+    # Raises IssuerUnavailable when himari cannot be reached or answers other than a grant or a
+    # refusal.
     #: (BrowserSession) -> BrowserSession
     def refresh(browser_session)
       refresh_token = browser_session.refresh_token or raise Revoked, "the session holds no refresh token"
@@ -40,14 +39,18 @@ module Authn
       request.basic_auth(authn.session_client_id, authn.session_client_secret.to_s)
       request.set_form_data("grant_type" => "refresh_token", "refresh_token" => refresh_token)
 
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
-        http.request(request)
+      response = begin
+        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
+          http.request(request)
+        end
+      rescue StandardError
+        raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s)
       end
       body = parse_body(response)
       return body if response.is_a?(Net::HTTPSuccess) && body.is_a?(Hash)
       raise Revoked, "himari refused the refresh" if body.is_a?(Hash) && body["error"] == "invalid_grant"
 
-      raise Unavailable, "himari answered the refresh with HTTP #{response.code}"
+      raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s, detail: "HTTP #{response.code}")
     end
 
     #: (Net::HTTPResponse) -> untyped
