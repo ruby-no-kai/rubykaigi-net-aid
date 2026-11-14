@@ -398,3 +398,4 @@ Implementation complete.
   - `mutation_outcome` is a Symbol: `applied` and `rejected` name the journalled `OUTCOME_APPLIED` and `OUTCOME_REJECTED`. The retry warning of `retryable_transaction` and the unique-violation warning of `Changelog.write` carry the exception as its own field and the attempt as payload, not in the message.
   - The backoff of `retryable_transaction` is capped at `DsqlTransactionable::MAX_SLEEP_SECONDS` (2 s) before jitter.
   - `Changelog/BulkWrite` and `Rails/SkipsModelValidations` exclude only `app/models/changelog/context.rb`, the bulk path. Other false positives, specs included, disable the cop inline with a reason.
+  - `ProtoEnum` moves to `app/models/concerns/`, beside the other helpers shared by models.
