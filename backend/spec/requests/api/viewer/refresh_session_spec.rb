@@ -34,7 +34,7 @@ RSpec.describe "ViewerService.RefreshSession" do
     stub_grant(roles: %w[admin])
 
     travel(61.seconds) do
-      expect(refresh.viewer).to have_attributes(signed_in: true, roles: %w[admin])
+      expect(refresh.viewer).to have_attributes(roles: %w[admin])
       expect(viewer.actor.credential_id).to eq(credential_id)
       expect(viewer.roles).to eq(%w[admin])
     end
@@ -87,7 +87,7 @@ RSpec.describe "ViewerService.RefreshSession" do
 
     expect(problem_type_of(error)).to eq("session-revoked")
     expect(session_cookie_set?).to be(false)
-    expect(viewer).to have_attributes(signed_in: true, roles: %w[admin])
+    expect(viewer).to have_attributes(roles: %w[admin])
   end
 
   it "rewrites the cookie with its expiry" do
@@ -113,7 +113,7 @@ RSpec.describe "ViewerService.RefreshSession" do
     error = refresh
     expect(error.code).to eq("unavailable")
     expect(problem_type_of(error)).to eq("unavailable")
-    expect(viewer.signed_in).to be(true)
+    expect(viewer.actor).to be_present
   end
 
   it "answers unavailable when himari does not answer" do

@@ -53,7 +53,7 @@ Proto doc comments are documentation for API clients; write them for that reader
    ```ruby
    #: () -> Rk::NetAid::ViewerServiceGetViewerResponse
    def get_viewer
-     Rk::NetAid::ViewerServiceGetViewerResponse.new(viewer: Rk::NetAid::Viewer.new(signed_in: false))
+     Rk::NetAid::ViewerServiceGetViewerResponse.new(viewer: Rk::NetAid::Viewer.new)
    end
    ```
 

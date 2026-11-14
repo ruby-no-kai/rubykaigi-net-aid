@@ -6,13 +6,12 @@ option ruby_package = "Rk::NetAid";
 
 // The party calling the API.
 message Viewer {
-  // Whether the request carries a signed-in session or an accepted bearer token.
-  bool signed_in = 1;
-  // The caller, when signed in.
-  Actor actor = 2;
+  // The caller, set when the request carries a signed-in session or an accepted bearer token, and
+  // unset for an anonymous caller.
+  Actor actor = 1;
   // The caller's roles, such as `viewer`, `operator`, `admin` or `exporter`. Empty when signed
   // out, or when the caller holds no role and may call nothing beyond ViewerService.
-  repeated string roles = 3;
+  repeated string roles = 2;
 }
 
 // The caller recorded by the changelog.

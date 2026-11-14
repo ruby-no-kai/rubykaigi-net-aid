@@ -81,7 +81,7 @@ RSpec.describe "Browser sign-in" do
       sign_in_as(roles: %w[admin])
 
       expect(response).to redirect_to("https://www.example.com/devices/sw-1?tab=ports")
-      expect(viewer).to have_attributes(signed_in: true, roles: %w[admin])
+      expect(viewer).to have_attributes(roles: %w[admin])
       expect(viewer.actor).to have_attributes(issuer: "himari", subject: "github_1", display_name: "octocat")
       expect(viewer.actor.credential_id).to match(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/)
     end
@@ -137,7 +137,7 @@ RSpec.describe "Browser sign-in" do
 
       expect(response).to have_http_status(:unauthorized)
       expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: "wrong_audience")
-      expect(viewer.signed_in).to be(false)
+      expect(viewer.actor).to be_nil
     ensure
       OmniAuth.config.test_mode = false
       OmniAuth.config.mock_auth.delete(:himari)
@@ -154,7 +154,7 @@ RSpec.describe "Browser sign-in" do
 
       expect(response).to have_http_status(:service_unavailable)
       expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: "jwks_unavailable")
-      expect(viewer.signed_in).to be(false)
+      expect(viewer.actor).to be_nil
     end
   end
 
@@ -180,7 +180,7 @@ RSpec.describe "Browser sign-in" do
       get "/auth/himari", params: {return_to: "/devices"}
 
       expect(session_cookie).to include("expires=")
-      expect(viewer.signed_in).to be(true)
+      expect(viewer.actor).to be_present
     end
   end
 
@@ -189,7 +189,7 @@ RSpec.describe "Browser sign-in" do
       https!
       get "/auth/developer/callback", params: {subject: "dev_1", name: "Developer", roles: "operator, admin"}
 
-      expect(viewer).to have_attributes(signed_in: true, roles: %w[operator admin])
+      expect(viewer).to have_attributes(roles: %w[operator admin])
       expect(viewer.actor).to have_attributes(issuer: "developer", subject: "dev_1", display_name: "Developer")
     end
   end
@@ -200,7 +200,7 @@ RSpec.describe "Browser sign-in" do
       post "/auth/sign_out"
 
       expect(response).to redirect_to("https://www.example.com/")
-      expect(viewer.signed_in).to be(false)
+      expect(viewer.actor).to be_nil
     end
 
     it "refuses a cross-site request" do
@@ -208,7 +208,7 @@ RSpec.describe "Browser sign-in" do
       post "/auth/sign_out", headers: {"Sec-Fetch-Site" => "cross-site", "Origin" => "https://evil.invalid"}
 
       expect(response).to have_http_status(:forbidden)
-      expect(viewer.signed_in).to be(true)
+      expect(viewer.actor).to be_present
     end
   end
 

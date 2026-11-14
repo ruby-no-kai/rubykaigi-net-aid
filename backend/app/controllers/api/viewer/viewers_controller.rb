@@ -27,7 +27,7 @@ module Api
       #: () -> Rk::NetAid::Viewer
       private def viewer_message
         actor = current_actor_maybe
-        actor ? Api::ViewerResource.new(actor).as_protobuf : Rk::NetAid::Viewer.new(signed_in: false)
+        actor ? Api::ViewerResource.new(actor).as_protobuf : Rk::NetAid::Viewer.new
       end
     end
   end

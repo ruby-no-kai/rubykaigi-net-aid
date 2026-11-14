@@ -41,7 +41,7 @@ The authenticated caller becomes the Actor that the changelog and Mutation journ
 
 ### Browser sign-in
 
-1. The frontend calls `ViewerService.GetViewer`. `signed_in: false` sends the user to `/auth/himari?return_to=<path>`. `return_to` is kept in the session and used after the callback. Only a relative path starting with a single `/` is accepted; anything else lands on `/`. The page answered there POSTs, with a CSRF token, to OmniAuth's request phase, since OmniAuth 2 starts a sign-in only on a POST.
+1. The frontend calls `ViewerService.GetViewer`. A Viewer without `actor` sends the user to `/auth/himari?return_to=<path>`. `return_to` is kept in the session and used after the callback. Only a relative path starting with a single `/` is accepted; anything else lands on `/`. The page answered there POSTs, with a CSRF token, to OmniAuth's request phase, since OmniAuth 2 starts a sign-in only on a POST.
 2. omniauth-himari runs the authorisation code flow with PKCE against himari, requesting `openid offline_access`.
 3. The callback verifies the access token as a bearer token is verified (audience `net-aid`) and stores in the encrypted cookie session a `rubykaigi.net_aid.server.BrowserSession` message, Base64 under the key `authn_pb`: the Actor, the roles, the access token's expiry, the access token and the refresh token. A value that does not decode reads as signed out.
 4. An RPC whose session has an expired access token never refreshes it. It answers `Errors::SessionExpired`.
@@ -102,9 +102,8 @@ The messages are in `proto/rubykaigi/net_aid/viewer.proto`, the service in `view
 
 ```proto
 message Viewer {
-  bool signed_in = 1;
-  Actor actor = 2;
-  repeated string roles = 3;
+  Actor actor = 1; // unset for an anonymous caller
+  repeated string roles = 2;
 }
 
 // The caller recorded by the changelog.

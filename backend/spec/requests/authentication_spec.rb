@@ -23,7 +23,6 @@ RSpec.describe "Bearer authentication" do
     viewer = get_viewer(himari_access_token(jti: "j-1", roles: %w[admin])).viewer
 
     expect(viewer).to eq(Rk::NetAid::Viewer.new(
-      signed_in: true,
       actor: Rk::NetAid::Actor.new(
         issuer: "himari", subject: "github_1", display_name: "octocat", credential_id: "net-aid-cli/j-1",
         user_agent: "net-aid-test/1",
@@ -56,7 +55,7 @@ RSpec.describe "Bearer authentication" do
 
   it "answers an anonymous caller as signed out" do
     response = connect_call(rpc, Rk::NetAid::ViewerServiceGetViewerRequest.new)
-    expect(response.viewer).to eq(Rk::NetAid::Viewer.new(signed_in: false))
+    expect(response.viewer).to eq(Rk::NetAid::Viewer.new)
   end
 
   {
@@ -109,6 +108,6 @@ RSpec.describe "Bearer authentication" do
 
   it "signs in a caller holding no role, who may still call GetViewer" do
     viewer = get_viewer(himari_access_token(roles: nil)).viewer
-    expect(viewer).to have_attributes(signed_in: true, roles: [])
+    expect(viewer).to have_attributes(roles: [])
   end
 end

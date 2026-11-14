@@ -11,11 +11,8 @@ module Rk
     class Viewer < ::Google::Protobuf::AbstractMessage
       include ::Google::Protobuf::_MessageClass[::Rk::NetAid::Viewer]
 
-      # Whether the request carries a signed-in session or an accepted bearer token.
-      attr_accessor signed_in(): bool
-      def clear_signed_in: () -> void
-
-      # The caller, when signed in.
+      # The caller, set when the request carries a signed-in session or an accepted bearer token, and
+      # unset for an anonymous caller.
       attr_accessor actor(): ::Rk::NetAid::Actor?
       def has_actor?: () -> bool
       def clear_actor: () -> void
@@ -26,8 +23,6 @@ module Rk
       def clear_roles: () -> void
 
       type init_map = {
-        signed_in: bool?,
-        "signed_in" => bool?,
         actor: (::Rk::NetAid::Actor | ::Rk::NetAid::Actor::init_map)?,
         "actor" => (::Rk::NetAid::Actor | ::Rk::NetAid::Actor::init_map)?,
         roles: ::Array[::String | ::Symbol]?,
@@ -37,13 +32,11 @@ module Rk
       def initialize: (?init_map initial_value) -> void
 
       def []:
-          ("signed_in" name) -> bool
-        | ("actor" name) -> ::Rk::NetAid::Actor?
+          ("actor" name) -> ::Rk::NetAid::Actor?
         | ("roles" name) -> (::Google::Protobuf::RepeatedField[::String, ::String | ::Symbol])
 
       def []=:
-          ("signed_in" name, bool value) -> void
-        | ("actor" name, ::Rk::NetAid::Actor? value) -> void
+          ("actor" name, ::Rk::NetAid::Actor? value) -> void
         | ("roles" name, (::Google::Protobuf::RepeatedField[::String, ::String | ::Symbol]) value) -> void
     end
 
