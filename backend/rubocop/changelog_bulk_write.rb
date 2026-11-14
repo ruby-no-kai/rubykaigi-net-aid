@@ -24,6 +24,10 @@ module RuboCop
         # @!method file_utils?(node)
         def_node_matcher :file_utils?, "(const {nil? cbase} :FileUtils)"
 
+        # Constants whose delete takes an argument and is not Active Record's.
+        # @!method non_record_constant?(node)
+        def_node_matcher :non_record_constant?, "(const {nil? cbase} {:ENV :File :Dir})"
+
         def on_send(node)
           return unless offense?(node)
 
@@ -37,10 +41,19 @@ module RuboCop
           when *ROW_INSERTS then node.first_argument&.hash_type?
           when :insert_all! then !(node.receiver && changelog_current?(node.receiver))
           when :touch then !(node.receiver && file_utils?(node.receiver))
-          # Hash#delete and Array#delete take an argument; a record's delete takes none.
-          when :delete then !node.arguments? && !node.receiver.nil?
+          when :delete then delete_offense?(node)
           else false
           end
+        end
+
+        # A record's delete takes no argument, a model's takes ids. Hash#delete and Array#delete
+        # take an argument on a receiver that is no constant.
+        private def delete_offense?(node)
+          receiver = node.receiver
+          return false unless receiver
+          return true unless node.arguments?
+
+          receiver.const_type? && !non_record_constant?(receiver)
         end
       end
     end

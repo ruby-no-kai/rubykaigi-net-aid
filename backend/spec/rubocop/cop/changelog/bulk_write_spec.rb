@@ -37,6 +37,15 @@ RSpec.describe RuboCop::Cop::Changelog::BulkWrite, :config do
     RUBY
   end
 
+  it "flags a model's delete by id" do
+    expect_offense(<<~RUBY)
+      Site.delete(id)
+           ^^^^^^ `delete` skips the changelog; use Changelog.current.insert_all! or a save per row.
+      ::Site.delete([a, b])
+             ^^^^^^ `delete` skips the changelog; use Changelog.current.insert_all! or a save per row.
+    RUBY
+  end
+
   it "flags a safe-navigation call" do
     expect_offense(<<~RUBY)
       site&.update_columns(name: "x")
@@ -57,6 +66,9 @@ RSpec.describe RuboCop::Cop::Changelog::BulkWrite, :config do
       list.insert(0, item)
       name.insert(2, "-")
       params.delete(:id)
+      @rows.delete(row)
+      ENV.delete("FOO")
+      File.delete(path)
       FileUtils.touch(path)
     RUBY
   end
