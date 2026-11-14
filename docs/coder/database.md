@@ -141,7 +141,7 @@ DSQL uses optimistic concurrency control: there are no lock waits, and a transac
 
 Open every transaction with one of the `DsqlTransactionable` helpers (included in `ApplicationRecord`). A RuboCop cop (`Dsql/TransactionOccAwareness`, see [rubocop.md](rubocop.md)) rejects bare `transaction` and `with_lock`.
 
-- `retryable_transaction` retries OCC conflicts with jittered exponential backoff. The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
+- `retryable_transaction` retries OCC conflicts, and the victims of a PostgreSQL deadlock, with jittered exponential backoff capped at `DsqlTransactionable::MAX_SLEEP_SECONDS` (2 s, `max_sleep_seconds:` to change). The whole block re-runs, so read everything it depends on inside the block (`reload` records loaded before it).
 - `non_idempotent_transaction` does not retry. Use it when the block has external side effects or depends on data read before it.
 
 ```ruby
@@ -156,3 +156,77 @@ end
 - Open transactions in one layer (controller or service object), since they cannot nest.
 
 Local PostgreSQL does not reproduce OCC conflicts, so concurrency bugs only surface on DSQL. Reason about them when writing the code.
+
+## Branched tables and the changelog
+
+Every Plan and Fleet table is branched: each row belongs to one `Branch`, and every write is recorded in that branch's changelog (`change_sets`, `changes`) and, for a client request, in the `mutations` journal.
+
+A branched table carries these columns, plus a unique index on `(branch_id, lineage)` and one on `(branch_id, <natural key>)`:
+
+```sql
+    id uuid primary key,                   -- client-generated, or SecureRandom.uuid_v7
+    branch_id uuid not null,
+    lineage uuid not null,
+    updated_seq bigint not null,
+    created_at timestamp(6) with time zone not null default now(),
+    updated_at timestamp(6) with time zone not null default now(),
+```
+
+Its model includes `Branched` and names the Alba resource whose message is the row's image in its Changes:
+
+```ruby
+class Site < ApplicationRecord
+  include Branched
+  id_prefix "site"
+  natural_key :slug
+  changelog_resource Api::SiteResource
+end
+```
+
+- `Site.on(branch)`, `Site.find_by_natural_key!(branch, "venue")` and `Site.find_by_lineage(branch, lineage)` look rows up within a branch.
+- `insert_only!` makes updates and destroys raise `ActiveRecord::ReadOnlyRecord`.
+- `branch_id` and `lineage` cannot change once a row exists.
+- Enum columns hold the full proto enum value name, such as `STATE_READY`.
+
+### Writing
+
+Write branched rows only inside `Changelog.write`, which opens the transaction (a `retryable_transaction`). A save outside it raises `Changelog::NotWriting`, and calling it inside a transaction that is already open raises `Changelog::TransactionOpen`.
+
+```ruby
+Changelog.write(mutation: request.header, branches: [ branch ], rpc: "rubykaigi.net_aid.SiteService/UpdateSite", payload: request) do
+  Site.on(branch).find(site_id).update!(name:)
+  Rk::NetAid::SiteServiceUpdateSiteResponse.new(...)
+end
+```
+
+- `branches:` lists every branch the block may write; writing another raises `Changelog::UndeclaredBranch`. A declared branch costs nothing until the block writes it.
+- The block may run more than once on OCC conflicts, so it reads everything it depends on itself.
+- The block returns the RPC's response message. A request whose `mutation_id` is already journalled is answered with the stored response or problem without running the block; the same `mutation_id` with another rpc, actor or payload raises `Errors::MutationIdReused` (a `conflict` problem).
+- An `Errors::Rejection` or `ActiveRecord::RecordInvalid` raised by the block is journalled as a rejection and re-raised. A rejection is a problem that follows from the request and the data alone, so a retry would meet it again: `Errors::NotFound`, `Errors::FailedPrecondition`, `Errors::InvalidRecord` and `Errors::BranchFrozen` include the marker, as does any subclass of theirs. Include `Errors::Rejection` in a new problem class only when that holds. Any other failure journals nothing, problems such as `Errors::BranchNotReady` (a branch still being prepared) included, so the client's retry applies once the cause is gone.
+- A unique violation raised by the block means a concurrent write committed a row with the same key first. The write runs once more, so the block can see that row and raise a rejection of its own. If the retry hits the violation again, the write raises `Errors::DuplicateRow` (a `conflict` problem, Connect `aborted`) and journals nothing.
+- `mutation: nil` is for server-originated writes (jobs, imports, fork copies), which journal no Mutation. The ChangeSet records `Current.actor`; a job runs as the Actor that enqueued it, or as `Actor.system(<job class>)`.
+- Bulk inserts go through `Changelog.current.insert_all!(records)`, which validates each record and records its Change. Call it on `Changelog.current`, not on the block's argument, which the cop cannot recognise; `Rails/SkipsModelValidations` still flags it, so disable that cop inline with a reason.
+- The RuboCop cop `Changelog/BulkWrite` (`rubocop/changelog_bulk_write.rb`) rejects the Active Record writes that skip the callbacks recording a Change:
+  - `insert_all`, `upsert_all`, `update_all`, `delete_all`, `delete_by`, `update_column`, `update_columns`, `update_counters`, `increment!` and `decrement!`
+  - `insert`, `insert!` and `upsert` given a Hash
+  - `insert_all!` unless called on `Changelog.current`
+  - `touch` unless called on `FileUtils`
+  - `delete` with no arguments on a receiver, and `delete` with arguments on a constant other than `ENV`, `File` and `Dir`
+
+  Only `app/models/changelog/context.rb`, which implements the bulk path, is excluded. The cop cannot tell a `Branched` receiver statically, so a call on a table that is not branched, or on a receiver that is no record, disables it inline: `# rubocop:disable Changelog/BulkWrite -- <reason>`.
+- A write of N rows mutates about 2N rows. Chunk large writes at about 1,000 rows per `Changelog.write`, under DSQL's 3,000 rows and 10 MiB per transaction.
+
+Every write to a branch updates its `branches` row to take the next `seq`, so writers of one branch conflict and commit one at a time. That is what keeps each branch's `seq` gap-free in commit order on DSQL. On PostgreSQL the update takes a row lock instead, so a write touching two branches in the opposite order to another can deadlock. PostgreSQL aborts one of them, and its retry takes the seqs of the branches its failed attempt wrote up front, in id order.
+
+`change_sets`, `changes` and `mutations` are append-only: `app_user` may only select and insert them.
+
+### Reading history
+
+- `Change.on(branch).after(cursor)`: the sync feed after an opaque cursor (`Changelog::Cursor`, `Branch#cursor`). A cursor of another version or branch raises `Errors::ResyncRequired`. Never filter on `seq` outside `Changelog`.
+- `Change.on(branch).for_entity(id)`: one row's history, newest first. A delete Change carries the row's last state.
+- `Mutation.find(id)`: the request as sent (`payload_message`), and its `response_message` or `error_details`.
+
+### Testing
+
+Specs that write through `Changelog.write` are tagged `:committing`: they run outside a transactional fixture, as the write commits and its rejection path rolls back, and the changelog tables are emptied after each example. `trigger_dsql_conflict!` fails the current transaction with OC001 to exercise a retry. `spec/support/changelog_helper.rb` defines toy branched models (`SpikeRack`, `SpikeDevice`, `SpikeScan`) on test-only tables.
+

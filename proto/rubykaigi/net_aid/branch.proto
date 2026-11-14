@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package rubykaigi.net_aid;
+
+option ruby_package = "Rk::NetAid";
+
+// One line of history of one dataset. A frozen branch is a snapshot.
+message Branch {
+  // The branch's TypeID (`br_...`).
+  string id = 1;
+  Dataset dataset = 2;
+  // The Episode a Plan branch belongs to (`ep_...`). Empty for a Fleet branch.
+  string episode_id = 3;
+  // `main`, or a snapshot label.
+  string name = 4;
+  // The branch this one was forked from. Empty for a root.
+  string parent_id = 5;
+  // A frozen branch never changes again.
+  bool frozen = 6;
+  State state = 7;
+
+  // The kind of data a branch holds.
+  enum Dataset {
+    DATASET_UNSPECIFIED = 0;
+    DATASET_FLEET = 1;
+    DATASET_PLAN = 2;
+  }
+
+  // Whether a branch accepts writes.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Its rows are still being copied in, and writes are refused.
+    STATE_PREPARING = 1;
+    STATE_READY = 2;
+  }
+}

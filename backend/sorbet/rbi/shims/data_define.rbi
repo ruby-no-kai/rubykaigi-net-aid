@@ -38,3 +38,22 @@ class Authn::JwksCache::Failure
   sig { returns(Float) }
   def failed_at; end
 end
+
+class Changelog::Result
+  sig { returns(T.nilable(String)) }
+  def mutation_id; end
+
+  sig { returns(T.untyped) }
+  def response; end
+
+  sig { returns(T::Hash[String, String]) }
+  def cursors; end
+end
+
+class Changelog::Context::Stats
+  sig { returns(Integer) }
+  def change_sets; end
+
+  sig { returns(Integer) }
+  def changes; end
+end

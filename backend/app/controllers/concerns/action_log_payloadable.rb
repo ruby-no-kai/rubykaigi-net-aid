@@ -36,7 +36,6 @@ module ActionLogPayloadable
   private def problem_type_for(error)
     return unless error.is_a?(Problem::Detailable)
 
-    klass = error.class #: as Problem::Detailable::ClassMethods
-    klass.type&.to_sym
+    error.to_problem.type&.delete_prefix(Rails.application.config.problem.type_prefix)&.to_sym
   end
 end

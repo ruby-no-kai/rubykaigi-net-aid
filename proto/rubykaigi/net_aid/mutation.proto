@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package rubykaigi.net_aid;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "rubykaigi/net_aid/viewer.proto";
+
+option ruby_package = "Rk::NetAid";
+
+// Carried by every write request.
+message MutationHeader {
+  // A client-generated UUIDv7 TypeID (`mut_...`), the request's idempotency key. A retry of the
+  // same request carries the same id and is answered with the outcome of the first attempt.
+  string mutation_id = 1 [(buf.validate.field).cel = {
+    id: "mutation_header.mutation_id.typeid"
+    message: "value must be a mut_ TypeID"
+    expression: "this.matches('^mut_[0-7][0-9a-hjkmnp-tv-z]{25}$')"
+  }];
+  // Branch id to the cursor the client had applied when it made the request. Informational only.
+  map<string, string> base_cursors = 2;
+  // When the client made the request, by its own clock.
+  google.protobuf.Timestamp client_time = 3;
+}
+
+// One write request from a client, applied or rejected.
+message Mutation {
+  // The client-generated `mut_` TypeID.
+  string id = 1;
+  Actor actor = 2;
+  // The method called, as `rubykaigi.net_aid.<Service>/<Method>`.
+  string rpc = 3;
+  google.protobuf.Timestamp client_time = 4;
+  google.protobuf.Timestamp received_at = 5;
+  Outcome outcome = 6;
+
+  // How the server answered a Mutation.
+  enum Outcome {
+    OUTCOME_UNSPECIFIED = 0;
+    // Its writes were committed.
+    OUTCOME_APPLIED = 1;
+    // It was refused with a problem and nothing was written.
+    OUTCOME_REJECTED = 2;
+  }
+}

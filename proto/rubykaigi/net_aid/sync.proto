@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package rubykaigi.net_aid;
+
+option ruby_package = "Rk::NetAid";
+
+// One row's change within a ChangeSet.
+message Change {
+  // The TypeID of the row.
+  string entity_id = 1;
+  Op op = 2;
+  // The top-level fields whose value the change altered. Empty for a creation or a deletion.
+  repeated string changed_fields = 3;
+
+  // What happened to the row.
+  enum Op {
+    OP_UNSPECIFIED = 0;
+    // The row was created or updated, and the change carries its new state.
+    OP_UPSERT = 1;
+    // The row was deleted.
+    OP_DELETE = 2;
+  }
+}

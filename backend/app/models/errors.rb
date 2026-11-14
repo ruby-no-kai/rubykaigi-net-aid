@@ -5,8 +5,24 @@ require "connect_rpc_rails/protovalidate"
 require "google/rpc/error_details_pb"
 require "protobufable/problem"
 require "protobufable/problem/information"
+require "protobufable/problem_details_pb"
 
 module Errors
+  # The protobufable.ProblemDetails a Connect error carries for a problem.
+  #: (Exception & Problem::Detailable) -> Protobufable::ProblemDetails
+  def self.problem_details_for(error)
+    problem = error.to_problem
+    information = error.is_a?(Protobufable::Problem::Information) ? error.problem_information : []
+    Protobufable::ProblemDetails.new(
+      type: problem.type || "",
+      title: problem.title || "",
+      status: problem.status,
+      detail: problem.detail || "",
+      instance: problem.instance || "",
+      information: information.map { Google::Protobuf::Any.pack(it) },
+    )
+  end
+
   # An error the API answers as a problem, typed by a value of the ProblemType enum in
   # proto/rubykaigi/net_aid/problem.proto.
   class ApiError < StandardError
@@ -22,6 +38,12 @@ module Errors
     #: () -> String
     def self.problem_type_annotation = "rubykaigi.net_aid.problem_type"
   end
+
+  # A problem that follows from the request and the data it names alone, so a retry of the same
+  # request meets it again. Changelog.write journals only these as a Mutation's rejection.
+  #
+  # @requires_ancestor: Errors::ApiError
+  module Rejection; end
 
   # The request carries no credentials an action requires, or credentials that are refused.
   class Unauthenticated < ApiError
@@ -95,6 +117,8 @@ module Errors
 
   # The resource the request names does not exist.
   class NotFound < ApiError
+    include Rejection
+
     problem_type :PROBLEM_TYPE_NOT_FOUND
   end
 
@@ -103,8 +127,17 @@ module Errors
     problem_type :PROBLEM_TYPE_CONFLICT
   end
 
+  # A mutation_id was reused for a request with another rpc, actor or payload.
+  class MutationIdReused < Conflict; end
+
+  # A concurrent write committed a row with a unique key the request also writes. Over Connect it is
+  # `aborted`, which a client retries.
+  class DuplicateRow < Conflict; end
+
   # The resource is not in a state that allows the request.
   class FailedPrecondition < ApiError
+    include Rejection
+
     problem_type :PROBLEM_TYPE_FAILED_PRECONDITION
   end
 
@@ -114,6 +147,7 @@ module Errors
   # google.rpc.BadRequest violation of that field. Any other error, :base included, names no field
   # and concerns the request as a whole.
   class InvalidRecord < ApiError
+    include Rejection
     include Protobufable::Problem::Information
 
     problem_type :PROBLEM_TYPE_INVALID_RECORD
@@ -167,6 +201,26 @@ module Errors
 
       [*(@field_prefix unless @field_prefix.empty?), *names].join(".")
     end
+  end
+
+  # The branch a write names is frozen, or is not ready for writes yet.
+  class BranchNotWritable < ApiError
+    problem_type :PROBLEM_TYPE_BRANCH_NOT_WRITABLE
+  end
+
+  # The branch a write names is frozen.
+  class BranchFrozen < BranchNotWritable
+    include Rejection
+  end
+
+  # The branch a write names is still being prepared. It becomes writable, so a retry of the same
+  # Mutation runs again rather than replaying a rejection.
+  class BranchNotReady < BranchNotWritable; end
+
+  # The cursor a request carries is one the server no longer understands, or belongs to another
+  # branch.
+  class ResyncRequired < ApiError
+    problem_type :PROBLEM_TYPE_RESYNC_REQUIRED
   end
 
   # The server failed to answer the request.

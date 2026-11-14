@@ -65,6 +65,8 @@ Tags identify the request and apply to every line written after they are set, ne
 | `authn_sign_in_error` | the error OmniAuth redirected to `/auth/failure` with, such as `invalid_credentials`; absent unless it is a plain identifier |
 | `authn_unavailable_cause` | the exception or HTTP status behind `jwks_unavailable` or `refresh_unavailable` |
 | `authz_denied_action` | the action the policy denied, such as `netaid:CreateSite` |
+| `mutation_id` | the `mutation_id` of the request's `MutationHeader`, for a `Changelog.write` with one |
+| `mutation_outcome` | `applied` or `rejected` as journalled, `replayed` when a stored outcome was returned, `reused` when the `mutation_id` belongs to another request, or `failed` when the write raised and journalled nothing |
 
 Error fields are absent when the request did not fail. Authentication and authorisation failures answer 4xx, so their lines stay at info. An unreachable issuer answers 503 and logs at error. A token never appears on the line, only the reason it was refused. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it has no `connect_code`.
 
@@ -75,10 +77,13 @@ Counters are payload fields counting the work a request did, present only when n
 | Counter | Source |
 |---|---|
 | `jobs_enqueued` | `enqueue.active_job` notifications |
+| `occ_retries` | OCC retries taken by `retryable_transaction` |
+| `change_sets_written` | ChangeSets inserted by `Changelog.write` |
+| `changes_written` | Changes inserted by `Changelog.write`, `insert_all!` included |
 
 ## Jobs
 
-A job's canonical line is rails_semantic_logger's `Performed` line. `RequestLogContext.apply` merges the context's counters into it, and tags added during the job apply to it as to any other line. The executor resets the context per job, so nothing leaks between jobs.
+A job's canonical line is rails_semantic_logger's `Performed` line. `RequestLogContext.apply` merges the context's counters into it, and tags added during the job apply to it as to any other line. `ActorJob`, included in `ApplicationJob`, tags it with `actor_issuer`, `actor_subject` and `credential_id` of the Actor it runs as. The executor resets the context per job, so nothing leaks between jobs.
 
 ## Adding to the canonical line
 
