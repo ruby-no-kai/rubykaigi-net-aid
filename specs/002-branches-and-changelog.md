@@ -302,14 +302,14 @@ create unique index idx_<table>_branch_<key> on <table> (branch_id, <natural key
   5. On an `Errors::Rejection` or `ActiveRecord::RecordInvalid` raised by the block: roll back, record the Mutation as `OUTCOME_REJECTED` with the problem document in `error`, in its own `retryable_transaction`, then re-raise. Other exceptions propagate without a journal entry.
 - `Changelog::Context#insert_all!(records)`: for fork copies, imports and batched scans. Takes unsaved instances of one `Branched` model, runs their validations (raising `ActiveRecord::RecordInvalid` on the first failure), assigns `id`, `lineage` and `updated_seq`, builds after-images, and inserts the rows and their upsert Changes with `insert_all`. Inserts only; updates go through ordinary saves.
 - `ActiveRecord::SerializationFailure` and `ActiveRecord::Deadlocked` escaping `retryable_transaction` are mapped to Connect `unavailable` in `Api::ApplicationController`.
-- RuboCop cop `Changelog/BulkWrite` (`backend/rubocop/changelog_bulk_write.rb`, next to `Dsql/TransactionOccAwareness`) flags, outside `app/models/changelog.rb` and `app/models/changelog/`:
+- RuboCop cop `Changelog/BulkWrite` (`backend/rubocop/changelog_bulk_write.rb`, next to `Dsql/TransactionOccAwareness`) flags, outside `app/models/changelog/context.rb`:
   - `insert_all`, `upsert_all`, `update_all`, `delete_all`, `delete_by`, `update_column`, `update_columns`, `update_counters`, `increment!` and `decrement!`
   - `insert`, `insert!` and `upsert` given a Hash
   - `insert_all!` unless called on `Changelog.current`
   - `touch` unless called on `FileUtils`
   - `delete` with no arguments on a receiver, and `delete` with arguments on a constant other than `ENV`, `File` and `Dir`
 
-  It cannot tell a `Branched` receiver statically, so non-branched callers disable it inline.
+  It cannot tell a `Branched` receiver statically, so non-branched callers disable it inline with a reason, as do callers of `Changelog.current.insert_all!` for `Rails/SkipsModelValidations`.
 - In `app/models/errors.rb`: the `Errors::Rejection` marker; `Errors::BranchNotWritable` with its subclasses `Errors::BranchFrozen` and `Errors::BranchNotReady`; `Errors::MutationIdReused` and `Errors::DuplicateRow`, both subclasses of `Errors::Conflict`; `Errors::ResyncRequired`. `PROBLEM_TYPE_BRANCH_NOT_WRITABLE` and `PROBLEM_TYPE_RESYNC_REQUIRED` in `problem.proto`. In `app/models/changelog.rb`, the bug errors `Changelog::UndeclaredBranch`, `Changelog::NotWriting` and `Changelog::TransactionOpen`.
 - `Changelog::Cursor`: encodes and decodes the opaque cursor (today base64url of `<branch uuid>:<seq>` with a version prefix `v1.`); an unknown version, a cursor for another branch, or a `seq` beyond the bigint range raises `Errors::ResyncRequired`.
 - Transaction size: a write of N rows mutates about 2N rows (rows plus Changes) plus one ChangeSet. Callers that write many rows (fork copy, imports, bulk scans) chunk at ~1,000 rows per `Changelog.write` to stay under DSQL's 3,000 rows and 10 MiB.
@@ -397,3 +397,4 @@ Implementation complete.
   - Every job, `ActiveJob::Base` included, is enqueued after the enclosing transaction commits (`config/initializers/active_job.rb`).
   - `mutation_outcome` is a Symbol: `applied` and `rejected` name the journalled `OUTCOME_APPLIED` and `OUTCOME_REJECTED`. The retry warning of `retryable_transaction` and the unique-violation warning of `Changelog.write` carry the exception as its own field and the attempt as payload, not in the message.
   - The backoff of `retryable_transaction` is capped at `DsqlTransactionable::MAX_SLEEP_SECONDS` (2 s) before jitter.
+  - `Changelog/BulkWrite` and `Rails/SkipsModelValidations` exclude only `app/models/changelog/context.rb`, the bulk path. Other false positives, specs included, disable the cop inline with a reason.

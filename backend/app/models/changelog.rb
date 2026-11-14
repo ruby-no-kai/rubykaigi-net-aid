@@ -43,7 +43,7 @@ module Changelog
     begin
       writer.perform(&block)
     ensure
-      ActiveSupport::IsolatedExecutionState.delete(WRITING_KEY)
+      ActiveSupport::IsolatedExecutionState.delete(WRITING_KEY) # rubocop:disable Changelog/BulkWrite -- a thread-local key, not a record
     end
   end
 
@@ -66,7 +66,7 @@ module Changelog
     ActiveSupport::IsolatedExecutionState[CONTEXT_KEY] = context
     yield
   ensure
-    ActiveSupport::IsolatedExecutionState.delete(CONTEXT_KEY)
+    ActiveSupport::IsolatedExecutionState.delete(CONTEXT_KEY) # rubocop:disable Changelog/BulkWrite -- a thread-local key, not a record
   end
 
   # The actor_* columns ChangeSets and Mutations record.

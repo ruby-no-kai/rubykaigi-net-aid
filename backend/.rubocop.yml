@@ -83,18 +83,16 @@ Dsql/TransactionOccAwareness:
   Exclude:
     - app/models/concerns/dsql_transactionable.rb
 
+# Changelog::Context is the bulk path that records Changes.
 Changelog/BulkWrite:
   Enabled: true
   Exclude:
-    - app/models/changelog.rb
-    - app/models/changelog/**/*
-    - spec/models/changelog/**/*
+    - app/models/changelog/context.rb
 
-# Changelog::Context#insert_all! is the bulk path that records Changes, and specs exercise it.
+# Changelog::Context#insert_all! validates each row before its bulk insert.
 Rails/SkipsModelValidations:
   Exclude:
-    - app/models/changelog/**/*
-    - spec/models/changelog/**/*
+    - app/models/changelog/context.rb
 
 AllCops:
   SuggestExtensions: false
