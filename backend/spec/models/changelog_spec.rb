@@ -170,6 +170,41 @@ RSpec.describe Changelog, :committing, type: :model do
       )
     end
 
+    it "records nothing for a create aborted by a later callback" do
+      saved = nil
+      write { saved = SpikeDevice.new(branch:, name: "d", abort_save: true).save }
+
+      expect(saved).to be(false)
+      expect(Change.on(branch)).to be_empty
+      expect(ChangeSet.on(branch).pluck(:seq)).to eq([1])
+    end
+
+    it "records nothing for an update or destroy aborted by a later callback" do
+      device = nil
+      write { device = SpikeDevice.create!(branch:, name: "d") }
+
+      write do
+        reloaded = SpikeDevice.find(device.id)
+        reloaded.abort_save = true
+        reloaded.abort_destroy = true
+        reloaded.update(name: "e")
+        reloaded.destroy
+      end
+
+      expect(Change.on(branch).where(seq: 2)).to be_empty
+      expect(SpikeDevice.find(device.id).name).to eq("d")
+    end
+
+    it "keeps the last completed save of a row whose later save is aborted" do
+      write do
+        device = SpikeDevice.create!(branch:, name: "d")
+        device.abort_save = true
+        device.update(name: "e")
+      end
+
+      expect(Change.on(branch).sole.data).to include("name" => "d")
+    end
+
     it "skips a save that changes nothing" do
       rack = nil
       write { rack = SpikeRack.create!(branch:, name: "r") }

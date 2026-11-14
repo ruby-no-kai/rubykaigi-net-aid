@@ -144,6 +144,11 @@ class SpikeDevice < ApplicationRecord
 
   belongs_to :spike_rack, optional: true
   validates :name, presence: true
+
+  attr_accessor :abort_save, :abort_destroy
+
+  before_save { throw :abort if abort_save }
+  before_destroy { throw :abort if abort_destroy }
 end
 
 class SpikeScan < ApplicationRecord

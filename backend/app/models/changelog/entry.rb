@@ -33,7 +33,7 @@ class Changelog::Entry
     @destroyed = true
   end
 
-  # The changes row this entry inserts, or nil for a row created and destroyed in the same write.
+  # The changes row this entry inserts, or nil for a row that produces no Change.
   #: (seq: Integer, ordinal: Integer) -> Hash[Symbol, untyped]?
   def change_row(seq:, ordinal:)
     image, op, changed_fields = image_op_and_changed_fields
@@ -52,8 +52,10 @@ class Changelog::Entry
     }
   end
 
+  # False for a row created and destroyed in the same write, and for a row whose every save or
+  # destroy in the write was aborted by a later callback.
   #: () -> bool
-  def written? = !(@before.nil? && @destroyed)
+  def written? = @destroyed ? !@before.nil? : !@after.nil?
 
   #: () -> ([Google::Protobuf::AbstractMessage, String, Array[String]] | [nil, nil, nil])
   private def image_op_and_changed_fields
@@ -64,7 +66,10 @@ class Changelog::Entry
       return [before, Change::OP_DELETE, []]
     end
 
-    after = Must.because(@after) { "an entry that is not destroyed was saved" }.changelog_image
+    saved = @after
+    return [nil, nil, nil] unless saved
+
+    after = saved.changelog_image
     [after, Change::OP_UPSERT, before ? changed_fields(before, after) : []]
   end
 
