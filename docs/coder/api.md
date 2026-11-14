@@ -96,10 +96,12 @@ raise Errors::NotFound.new(detail: "No device has the name #{name.inspect}.")
 
 `Api::ApplicationController` authenticates every call, then authorises it by the action of its RPC.
 
-- `Authenticatable` (`app/controllers/concerns/authenticatable.rb`) sets `Current.actor` from the browser session first, then from an `Authorization: Bearer` token: a himari access token (`at+jwt`) for a client in `config.x.authn.himari_client_ids`, a GitHub Actions ID token, or an `sts:GetWebIdentityToken` token from an issuer in `config.x.authn.aws_issuers`. GitHub and AWS tokens must carry the audience `https://aid.rubykaigi.net`. A call without credentials stays anonymous; refused credentials answer `unauthenticated`.
+- `Authenticatable` (`app/controllers/concerns/authenticatable.rb`) sets `Current.actor` from the browser session first, then from an `Authorization: Bearer` token: a himari access token (`at+jwt`) for a client in `config.x.authn.himari_client_ids`, a GitHub Actions ID token, or an `sts:GetWebIdentityToken` token from an issuer in `config.x.authn.aws_issuers`. GitHub and AWS tokens must carry the audience `https://aid.rubykaigi.net`. A call without credentials stays anonymous; refused credentials answer `unauthenticated`. The signing algorithm comes from the JWK's type and curve (RSA RS256, EC P-256 ES256), and any other key is refused.
+- When an issuer's JWKS cannot be fetched, the call answers `unavailable` (`Errors::IssuerUnavailable`, 503). `Authn::JwksCache` keeps the failure for 10 seconds, so an outage is not fetched per request, and locks per issuer.
 - People's roles come from himari's `roles` claim. Machine roles come from `config.x.authn.machine_roles`, keyed by issuer and exact subject, extended without a deploy through the `NET_AID_MACHINE_ROLES` JSON.
 - `Authorizable` derives the action `netaid:<Method>` from the routed RPC and asks `Authz::Policy.permit?`. An anonymous caller is answered `unauthenticated`, a caller without a role allowing it `permission_denied`. Controllers declare nothing.
-- Role statements live in `app/models/authz/policy.rb`. An admin-only RPC is added to the operator's deny list. `spec/proto/rpc_actions_spec.rb` fails when some routed RPC is allowed for no role, or when two services declare the same method name.
+- Role statements live in `app/models/authz/policy.rb`. As in IAM, the statements of all an Actor's roles are pooled, and an action is permitted when one allows it and none denies it. The operator allows every action except its `not_actions` (IAM's `NotAction`), so an admin-only RPC is added to those `not_actions`, never as a deny, which would also take it from an Actor who is admin as well.
+- `spec/proto/rpc_actions_spec.rb` walks every service declared under `proto/` and fails when an RPC is not served by an action, derives another action than `netaid:<Method>`, is allowed for neither the public nor any role, or shares its method name with another service's.
 - Check a further action inside an RPC with `authorize!("netaid:RestoreMutation", episode:)`.
 - In a controller, read the caller with `current_actor`, which raises when there is none, or `current_actor_maybe`, and the browser session with `current_browser_session_maybe`. Outside a controller (models, jobs), use `Current.actor` and `Current.actor_maybe`.
 
@@ -113,12 +115,14 @@ People sign in through himari in the browser. The session lives in the encrypted
 |---|---|
 | `GET /auth/himari?return_to=<path>` | a page that POSTs, with a CSRF token, to OmniAuth's request phase; `return_to` must be a path on this origin |
 | `GET /auth/himari/callback` | stores the session and redirects to `return_to` |
+| `GET /auth/failure` | where OmniAuth sends a failed sign-in |
 | `POST /auth/sign_out` | clears the session |
 | `GET /auth/developer` | development and test only: signs in as any subject with any roles, for an hour |
 
-- An RPC whose session has an expired access token answers `session-expired` without refreshing it. The frontend then calls `ViewerService.RefreshSession` once and retries; it is the only RPC that rewrites the session, so concurrent RPCs never race on a rotated refresh token.
-- A refresh himari refuses clears the session and answers `session-revoked`.
-- The session cookie expires 14 days after it was last written, matching himari's refresh-token cap.
+- An RPC whose session has an expired access token answers `session-expired` without refreshing it. The frontend then calls `ViewerService.RefreshSession` once and retries; it is the only RPC that rewrites the session.
+- `NetAid::SessionCookieStore` (`lib/net_aid/session_cookie_store.rb`) writes the cookie only when the session's contents change, so an RPC that only read the session never puts back a refresh token a concurrent refresh rotated.
+- A refresh himari refuses answers `session-revoked` and leaves the cookie as it is, since another tab's refresh may have just renewed it. A himari that cannot be reached answers `unavailable` and keeps the session.
+- Every write of the session cookie sets it to expire 14 days later, matching himari's refresh-token cap.
 - Request specs that use the session cookie must run over https (`https!`), as the cookie is `Secure`. `sign_in_as` does this.
 
 ### himari configuration
