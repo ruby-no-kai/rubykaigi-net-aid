@@ -358,3 +358,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 - 2026-11-14: Authentication configuration and the cookie session middleware moved from `config/application.rb` and `config/environments/*.rb` to `config/initializers/authn.rb`.
 - 2026-11-14: Review fixes.
   - `authn_failure` values are Symbols, as are the `reason` of `Authn::BearerVerifier::Failure` and `Authn::Issuer::IssuerUnavailable`.
+  - `Authn::JwksCache` rescues only what fetching and parsing a JWKS raise: HTTPX errors, the socket, TLS and HTTP/2 errors HTTPX hands back unwrapped, and JSON, jwt and OpenSSL parse errors. `Authn::SessionRefresher::Revoked` keeps the verifier's refusal as its cause rather than in its message.

@@ -55,7 +55,10 @@ module Authn
 
       begin
         keys = fetch(url)
-      rescue StandardError => e
+      # HTTPX hands back socket, TLS and HTTP/2 errors unwrapped, and a malformed JWKS raises from
+      # JSON, jwt or OpenSSL.
+      rescue HTTPX::Error, HTTPX::TLSError, SystemCallError, SocketError, IOError, HTTP2::Error::Error,
+             JSON::ParserError, JWT::JWKError, ArgumentError, OpenSSL::PKey::PKeyError => e
         @failures[url] = Failure.new(error: e, failed_at: monotonic_now)
         raise Issuer::IssuerUnavailable.new(:jwks_unavailable, url:)
       end

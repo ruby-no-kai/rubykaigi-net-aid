@@ -36,9 +36,24 @@ RSpec.describe Authn::JwksCache, type: :model do
     expect(unavailable_from(url).cause).to be_a(HTTPX::TimeoutError)
   end
 
+  it "raises IssuerUnavailable when the connection fails below HTTPX" do
+    stub_request(:get, url).to_raise(Errno::ECONNRESET)
+    expect(unavailable_from(url).cause).to be_a(Errno::ECONNRESET)
+  end
+
   it "raises IssuerUnavailable when the JWKS does not parse" do
     stub_request(:get, url).to_return(status: 200, body: "<html>")
     expect(unavailable_from(url).cause).to be_a(JSON::ParserError)
+  end
+
+  {
+    "a key without its parameters" => [{keys: [{kty: "RSA", kid: "rsa-1"}]}, JWT::JWKError],
+    "a document other than a JWKS" => [1, ArgumentError]
+  }.each do |description, (document, error_class)|
+    it "raises IssuerUnavailable for #{description}" do
+      stub_request(:get, url).to_return(status: 200, body: JSON.generate(document))
+      expect(unavailable_from(url).cause).to be_a(error_class)
+    end
   end
 
   it "answers a failed fetch from the cache for a while, then fetches again" do

@@ -36,8 +36,8 @@ module Authn
       raise Revoked, "the refreshed session names another subject" unless refreshed.actor.subject == browser_session.actor.subject
 
       refreshed
-    rescue BearerVerifier::Failure => e
-      raise Revoked, "the refreshed access token is refused: #{e.reason}"
+    rescue BearerVerifier::Failure
+      raise Revoked, "the refreshed access token is refused"
     end
 
     #: (String) -> Hash[String, untyped]
