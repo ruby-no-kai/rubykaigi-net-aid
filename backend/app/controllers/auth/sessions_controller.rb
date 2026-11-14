@@ -4,7 +4,7 @@
 module Auth
   # Signs a browser in through OmniAuth and out again. ActionController::Base supplies the CSRF
   # token that omniauth-rails_csrf_protection requires on the POST starting a sign-in.
-  class SessionsController < ActionController::Base # rubocop:disable Rails/ApplicationController
+  class SessionsController < ActionController::Base # rubocop:disable Rails/ApplicationController -- needs the CSRF token and views ActionController::API omits
     include Problem::Rescuable
     include ActionLogPayloadable
 
@@ -88,6 +88,10 @@ module Auth
       origin = request.headers["Origin"]
       return if (fetch_site.nil? || fetch_site == "same-origin") && (origin.nil? || origin == request.base_url)
 
+      logger.warn(
+        "Refused a cross-site sign-out",
+        {reason: :cross_site, fetch_site: fetch_site&.truncate(64), origin: origin&.truncate(255)}.compact,
+      )
       head :forbidden
     end
   end

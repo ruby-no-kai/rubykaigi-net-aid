@@ -210,6 +210,16 @@ RSpec.describe "Browser sign-in" do
       expect(response).to have_http_status(:forbidden)
       expect(viewer.actor).to be_present
     end
+
+    it "logs why it refuses a cross-site request" do
+      logger = SemanticLogger::Test::CaptureLogEvents.new
+      allow(Auth::SessionsController).to receive(:logger).and_return(logger)
+
+      post "/auth/sign_out", headers: {"Origin" => "https://evil.invalid"}
+
+      refusal = logger.events.find { it.message == "Refused a cross-site sign-out" }
+      expect(refusal).to have_attributes(level: :warn, payload: {reason: :cross_site, origin: "https://evil.invalid"})
+    end
   end
 
   describe "an expired session" do

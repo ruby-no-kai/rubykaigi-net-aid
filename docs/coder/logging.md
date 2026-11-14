@@ -88,6 +88,7 @@ Each spec that logs lists what it adds in a "Logging" subsection.
 - A value describing the request as a whole is a payload field, snake_case with an area prefix: `authn_failure`, `mutation_outcome`. An enumerated value is a Symbol (`connect_code: :permission_denied`). Fields read from the request belong in `ActionLogPayloadable`; fields describing an error are its `Errors::ApiError#log_fields`, merged when it is rescued or rendered; other fields known where the work happens go through `RequestLogContext.add_fields(...)`.
 - A count is a counter, `RequestLogContext.increment(:name)`, named as a plural noun or `<thing>_<past verb>`: `occ_retries`, `changes_written`. Prefer incrementing from an `ActiveSupport::Notifications` subscriber in `config/initializers/semantic_logger.rb`; increment at the call site only when no event exists.
 - Never add a separate log line for something the canonical line can carry.
+- A gate that refuses a request without raising, such as the sign-out origin check, logs the refusal at warn with a Symbol `reason` in the payload.
 - `filter_parameters` does not apply to fields added by code. Never log tokens, cookies or other secrets.
 
 ## Querying

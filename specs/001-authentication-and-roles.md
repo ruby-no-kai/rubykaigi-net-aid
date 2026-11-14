@@ -213,13 +213,14 @@ An agent acting with a person's token writes as that person. History tells it ap
 - No CORS: the frontend is same-origin on `aid.rubykaigi.net`, and bearer callers are not browsers. `rack-cors` stays out, and `ConnectForgeryProtection` is unchanged.
 - `return_to` accepts only same-origin relative paths, so sign-in cannot be used as an open redirect.
 - `/auth/developer` exists only in development and test; it is not routed in production.
-- Logging rides on the request's canonical line (021), never a separate line:
+- Logging rides on the request's canonical line (021), with one exception for a gate that answers without raising:
   - tags, once authentication resolves the Actor: `actor_issuer`, `actor_subject`, `credential_id`; `episode` once authorisation resolves it
   - the sign-in callback sets the same tags for the Actor it signs in
   - on an authentication failure, payload `authn_failure` (`expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired`, `session_revoked`, `sign_in_failed`, each a Symbol) and `authn_issuer` (from the unverified `iss`); never the token
   - `/auth/failure` reports `sign_in_failed`, with OmniAuth's error as `authn_sign_in_error` when it is a plain identifier
   - when an issuer cannot be reached, `authn_failure` `jwks_unavailable` or `refresh_unavailable` and `authn_unavailable_cause` (the exception or HTTP status)
   - on a denial, payload `authz_denied_action`
+  - a refused sign-out logs `Refused a cross-site sign-out` at warn, with `reason` `:cross_site` and the `fetch_site` and `origin` it refused; its canonical line is a plain 403
   - these answer 4xx, so the line stays at info, except an unreachable issuer's 503, which logs at error
 
 ## Mission Scope
@@ -362,3 +363,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - `Authn::JwksCache` rescues only what fetching and parsing a JWKS raise: HTTPX errors, the socket, TLS and HTTP/2 errors HTTPX hands back unwrapped, and JSON, jwt and OpenSSL parse errors. `Authn::SessionRefresher::Revoked` keeps the verifier's refusal as its cause rather than in its message.
   - `NetAid::Http` is gone: `Authn::JwksCache` and `Authn::SessionRefresher` call `HTTPX.with` themselves, with the User-Agent from `config.x.http.user_agent` (`config/initializers/http.rb`).
   - The test environment configures `.invalid` issuers and audience, which `AuthnHelper` reads, so specs carry no real hostnames.
+  - A sign-out refused by the origin check logs a warn line naming the reason. The `rubocop:disable Rails/ApplicationController` on `Auth::SessionsController` gives its reason.
