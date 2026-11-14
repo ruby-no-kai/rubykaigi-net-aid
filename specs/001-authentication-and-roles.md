@@ -65,7 +65,7 @@ People's roles arrive in the himari `roles` claim, set by a himari Authorization
 | `kaigionrails/infra` | `operator` |
 | `ruby-no-kai/rk-orgz`, `ruby-no-kai/rkNN-orgz` | `viewer` |
 
-Machine identities get roles from a mapping in this app: a reviewed base mapping in `config/application.rb`, merged with additional entries from the `NET_AID_MACHINE_ROLES` environment variable (JSON, loaded from SSM in production), so a new workflow or role can be added without a deploy.
+Machine identities get roles from a mapping in this app: a reviewed base mapping in `config/initializers/authn.rb`, merged with additional entries from the `NET_AID_MACHINE_ROLES` environment variable (JSON, loaded from SSM in production), so a new workflow or role can be added without a deploy.
 
 | Role | May |
 |---|---|
@@ -260,7 +260,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 - `app/models/authz/policy.rb`: `Authz::Policy.permit?(actor, action, episode: nil)`, pooling the statements of all the Actor's roles; an action is permitted when one allows it and none denies it. `app/models/authz/statement.rb`: `Authz::Statement`, a plain class with `effect` (`:allow` or `:deny`) and either `actions` or `not_actions` (later `episodes`). Role statements are defined in code.
 - `app/models/errors.rb`: `Errors::SessionExpired`, `Errors::Unavailable` and the specific classes in [Inside the backend](#inside-the-backend); `PROBLEM_TYPE_SESSION_EXPIRED`, `PROBLEM_TYPE_SESSION_REVOKED` and `PROBLEM_TYPE_UNAVAILABLE` in `problem.proto`.
 - `app/controllers/auth/sessions_controller.rb`: `GET /auth/himari`, `/auth/himari/callback`, `/auth/failure`, `POST /auth/sign_out`; in development and test also `/auth/developer` (OmniAuth developer strategy: a form taking a subject, a name and roles). Needs the cookies and session middleware, which `ActionController::API` apps omit by default.
-- Configuration in `config/application.rb` under `Rails.configuration.x.authn`:
+- Configuration, and the cookie session middleware, in `config/initializers/authn.rb` under `Rails.configuration.x.authn`, with per-environment values in the same file:
 
   ```ruby
   config.x.authn.session_lifetime = 14.days # the cookie's expire_after
@@ -318,7 +318,7 @@ Implementation complete in this repository. The himari clients and rule in rubyk
 
 - 2026-11-08: Interview complete. Logging moved onto the canonical log line of 021.
 - 2026-11-08: Added the `omniauth-himari`, `omniauth-rails_csrf_protection` and `jwt` gems (plus `webmock` for specs); the session middleware follows with the browser sign-in. `Actor`, `Current`, `Authn::Issuer` (subclasses `Himari`, `GithubActions`, `AwsSts`), `Authn::BearerVerifier`, `Authn::JwksCache` and `Authn::MachineRoles` are in.
-  - `config.x.authn.machine_roles` is merged in a `config.after_initialize` block of `config/application.rb`, since `Authn::MachineRoles` is autoloaded and not yet loadable while the application class body runs.
+  - `config.x.authn.machine_roles` is merged in a `config.after_initialize` block of `config/initializers/authn.rb`, since `Authn::MachineRoles` is autoloaded and not yet loadable while the application class body runs.
   - `config.x.authn.aws_issuers` is empty and the base `aws-sts` mapping has no entry: the rubykaigi account's `sts:GetWebIdentityToken` issuer URL and the role ARN to grant are not known here. Open point: fill both in, or add them through `NET_AID_MACHINE_ROLES` and an environment override.
   - JWKS URLs: himari `/public/jwks`, GitHub `/.well-known/jwks`, AWS `/.well-known/jwks.json` (the path AWS documents for outbound identity federation issuers). The cache refetches a JWKS at most once a minute per issuer.
   - Failure reasons outside the spec's list are folded into it: a malformed token, a disallowed algorithm and a missing required claim report `bad_signature`; a token not yet valid (`nbf`, future `iat`) reports `expired`. Open point: add dedicated values if the distinction matters.
@@ -355,3 +355,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - `spec/proto/rpc_actions_spec.rb` walks the services declared in `proto/` rather than the routes, which connect_rpc_rails draws for every declared RPC whether or not an action implements it.
   - This spec's body now describes the code as it stands: the `developer` issuer, `Authn::Issuers`, the `authn_pb` session message, POST-only sign-out, the full configuration, the error classes, and `RefreshSession` in `viewer_service.proto`.
 - 2026-11-14: Review: errors raised by models are problems themselves. `Authn::BearerVerifier::Failure` and `::Expired` replace `Errors::BearerTokenRefused` and `::BearerTokenExpired`, `Authn::SessionRefresher::Revoked` replaces `Errors::SessionRevoked`, and `Authn::Issuer::IssuerUnavailable` replaces `Authn::IssuerUnavailable` and `Errors::IssuerUnavailable`. Each error declares its canonical line fields in `log_fields`, which `ActionLogPayloadable` merges. `Auth::SessionsController` renders problems through `Problem::Rescuable`. Outbound HTTP goes through HTTPX (`NetAid::Http`) with a User-Agent.
+- 2026-11-14: Authentication configuration and the cookie session middleware moved from `config/application.rb` and `config/environments/*.rb` to `config/initializers/authn.rb`.
