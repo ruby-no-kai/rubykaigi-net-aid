@@ -4,6 +4,11 @@
 # Performs one Changelog.write: replay of a journalled Mutation, or the transaction with its
 # journal entry.
 class Changelog::Writer
+  # mutation_outcome values on the canonical line beside the journalled Mutation::OUTCOME_*.
+  LOG_OUTCOME_REPLAYED = "replayed" #: String
+  LOG_OUTCOME_REUSED = "reused" #: String
+  LOG_OUTCOME_FAILED = "failed" #: String
+
   #: (mutation: Rk::NetAid::MutationHeader?, branches: Array[Branch], rpc: String?,
   #|  payload: Google::Protobuf::AbstractMessage?) -> void
   def initialize(mutation:, branches:, rpc:, payload:)
@@ -16,6 +21,7 @@ class Changelog::Writer
     @rpc = rpc
     @payload = payload
     @last_context = nil #: Changelog::Context?
+    @logged = false #: bool
   end
 
   #: [T] () { (Changelog::Context) -> T } -> Changelog::Result
@@ -36,6 +42,8 @@ class Changelog::Writer
 
       replay(winner, actor)
     end
+  ensure
+    log(outcome: LOG_OUTCOME_FAILED) unless @logged
   end
 
   #: [T] (Actor?) { (Changelog::Context) -> T } -> Changelog::Result
@@ -95,10 +103,11 @@ class Changelog::Writer
   #: (Mutation, Actor) -> Changelog::Result
   private def replay(stored, actor)
     unless stored.rpc == @rpc && stored.actor_issuer == actor.issuer && stored.actor_subject == actor.subject && stored.payload_message == @payload
+      log(outcome: LOG_OUTCOME_REUSED)
       raise Errors::MutationIdReused.new(detail: "The mutation #{mutation_id} was already used for another request.")
     end
 
-    log(outcome: "replayed")
+    log(outcome: LOG_OUTCOME_REPLAYED)
     raise Changelog::ReplayedRejection, stored.error_details if stored.rejected?
 
     cursors = stored.change_sets.to_h { [it.branch_id, Changelog::Cursor.encode(branch_id: it.branch_id, seq: it.seq)] }
@@ -167,7 +176,9 @@ class Changelog::Writer
 
   #: (outcome: String, ?stats: Changelog::Context::Stats?) -> void
   private def log(outcome:, stats: nil)
-    RequestLogContext.add_fields(mutation_id:, mutation_outcome: outcome) if @header
+    @logged = true
+    # The raw id, as the write may have failed on validating it.
+    @header&.then { RequestLogContext.add_fields(mutation_id: it.mutation_id, mutation_outcome: outcome) }
     return unless stats
 
     RequestLogContext.increment(:change_sets_written, by: stats.change_sets) if stats.change_sets.positive?

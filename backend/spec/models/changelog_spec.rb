@@ -525,6 +525,41 @@ RSpec.describe Changelog, :committing, type: :model do
       expect(RequestLogContext.log_payload).to include(mutation_outcome: Mutation::OUTCOME_REJECTED)
     end
 
+    it "reports a write to a branch still being prepared as failed" do
+      header = mutation_header
+      branch.update!(state: Branch::STATE_PREPARING)
+
+      expect { write(mutation: header) { SpikeRack.create!(branch:, name: "r") } }.to raise_error(Errors::BranchNotReady)
+
+      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: "failed")
+    end
+
+    it "reports a unique-key race as failed" do
+      header = mutation_header
+
+      expect { write(mutation: header) { raise ActiveRecord::RecordNotUnique, "duplicate key" } }.to raise_error(Errors::DuplicateRow)
+
+      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: "failed")
+    end
+
+    it "reports a failure that is not a rejection as failed" do
+      header = mutation_header
+
+      expect { write(mutation: header) { raise "bug" } }.to raise_error(RuntimeError)
+
+      expect(RequestLogContext.log_payload).to include(mutation_id: header.mutation_id, mutation_outcome: "failed")
+    end
+
+    it "reports a reused mutation_id" do
+      header = mutation_header
+      write(mutation: header) { response }
+      RequestLogContext.reset
+
+      expect { write(mutation: header, payload: write_request(header, name: "other")) { response } }.to raise_error(Errors::MutationIdReused)
+
+      expect(RequestLogContext.log_payload).to eq(mutation_id: header.mutation_id, mutation_outcome: "reused")
+    end
+
     it "reports a replay" do
       header = mutation_header
       write(mutation: header) { response }
