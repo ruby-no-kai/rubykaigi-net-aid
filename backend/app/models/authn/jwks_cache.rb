@@ -50,14 +50,14 @@ module Authn
     private_class_method def self.refresh(url)
       failure = @failures[url] #: Failure?
       if failure && failure.failed_at >= monotonic_now - FAILURE_INTERVAL
-        raise Issuer::IssuerUnavailable.new("jwks_unavailable", url:), cause: failure.error
+        raise Issuer::IssuerUnavailable.new(:jwks_unavailable, url:), cause: failure.error
       end
 
       begin
         keys = fetch(url)
       rescue StandardError => e
         @failures[url] = Failure.new(error: e, failed_at: monotonic_now)
-        raise Issuer::IssuerUnavailable.new("jwks_unavailable", url:)
+        raise Issuer::IssuerUnavailable.new(:jwks_unavailable, url:)
       end
       @failures.delete(url)
       @entries[url] = Entry.new(keys:, fetched_at: monotonic_now)

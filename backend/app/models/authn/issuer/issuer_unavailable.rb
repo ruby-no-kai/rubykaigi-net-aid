@@ -5,7 +5,7 @@
 # authn_failure value the canonical log line reports, `url` the endpoint that failed, and `answer`
 # what it answered when no exception explains the failure.
 class Authn::Issuer::IssuerUnavailable < Errors::Unavailable
-  #: String
+  #: Symbol
   attr_reader :reason
 
   #: String
@@ -14,7 +14,7 @@ class Authn::Issuer::IssuerUnavailable < Errors::Unavailable
   #: String?
   attr_reader :answer
 
-  #: (String reason, url: String, ?answer: String?) -> void
+  #: (Symbol reason, url: String, ?answer: String?) -> void
   def initialize(reason, url:, answer: nil)
     @reason = reason
     @url = url

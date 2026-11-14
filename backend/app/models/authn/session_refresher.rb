@@ -18,7 +18,7 @@ module Authn
       end
 
       #: () -> Hash[Symbol, untyped]
-      def log_fields = {authn_failure: "session_revoked"}
+      def log_fields = {authn_failure: :session_revoked}
     end
 
     # Raises Issuer::IssuerUnavailable when himari cannot be reached or answers other than a grant or a
@@ -49,14 +49,14 @@ module Authn
         .basic_auth(authn.session_client_id, authn.session_client_secret.to_s)
         .post(uri.to_s, form: {"grant_type" => "refresh_token", "refresh_token" => refresh_token})
       if response.is_a?(HTTPX::ErrorResponse)
-        raise Issuer::IssuerUnavailable.new("refresh_unavailable", url: uri.to_s), cause: response.error
+        raise Issuer::IssuerUnavailable.new(:refresh_unavailable, url: uri.to_s), cause: response.error
       end
 
       body = parse_body(response)
       return body if (200..299).cover?(response.status) && body.is_a?(Hash)
       raise Revoked, "himari refused the refresh" if body.is_a?(Hash) && body["error"] == "invalid_grant"
 
-      raise Issuer::IssuerUnavailable.new("refresh_unavailable", url: uri.to_s, answer: "HTTP #{response.status}")
+      raise Issuer::IssuerUnavailable.new(:refresh_unavailable, url: uri.to_s, answer: "HTTP #{response.status}")
     end
 
     #: (HTTPX::Response) -> untyped

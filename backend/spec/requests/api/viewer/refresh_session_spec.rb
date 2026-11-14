@@ -1,16 +1,22 @@
 # frozen_string_literal: true
 
 require "rails_helper"
+require "semantic_logger/test/capture_log_events"
 
 RSpec.describe "ViewerService.RefreshSession" do
   let(:rpc) { connect_method("ViewerService", "RefreshSession") }
   let(:get_viewer) { connect_method("ViewerService", "GetViewer") }
   let(:token_url) { "#{AuthnHelper::HIMARI}/public/oidc/token" }
+  let(:logger) { SemanticLogger::Test::CaptureLogEvents.new }
 
-  before { stub_trusted_jwks }
+  before do
+    stub_trusted_jwks
+    allow(Api::Viewer::ViewersController).to receive(:logger).and_return(logger)
+  end
 
   def refresh = connect_call(rpc, Rk::NetAid::ViewerServiceRefreshSessionRequest.new)
   def viewer = connect_call(get_viewer, Rk::NetAid::ViewerServiceGetViewerRequest.new).viewer
+  def completed_line = logger.events.reverse.find { it.message.start_with?("Completed") }
 
   def stub_grant(roles:, refresh_token: "refresh-2", sub: "github_1")
     stub_request(:post, token_url)
@@ -63,6 +69,7 @@ RSpec.describe "ViewerService.RefreshSession" do
     expect(error.status).to eq(401)
     expect(problem_type_of(error)).to eq("session-revoked")
     expect(session_cookie_set?).to be(false)
+    expect(completed_line.payload).to include(authn_failure: :session_revoked)
   end
 
   it "answers session-revoked when the refreshed token names another subject, leaving the cookie alone" do
@@ -113,6 +120,7 @@ RSpec.describe "ViewerService.RefreshSession" do
     error = refresh
     expect(error.code).to eq("unavailable")
     expect(problem_type_of(error)).to eq("unavailable")
+    expect(completed_line.payload).to include(authn_failure: :refresh_unavailable, authn_unavailable_cause: "HTTP 503")
     expect(viewer.actor).to be_present
   end
 

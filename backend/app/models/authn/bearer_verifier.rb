@@ -12,13 +12,13 @@ module Authn
     # `reason` is one of the authn_failure values the canonical log line reports, and `issuer` the
     # unverified `iss`.
     class Failure < Errors::Unauthenticated
-      #: String
+      #: Symbol
       attr_reader :reason
 
       #: String?
       attr_reader :issuer
 
-      #: (String reason, issuer: String?, ?detail: String) -> void
+      #: (Symbol reason, issuer: String?, ?detail: String) -> void
       def initialize(reason, issuer:, detail: "The bearer token is not accepted.")
         @reason = reason
         @issuer = issuer
@@ -33,7 +33,7 @@ module Authn
     class Expired < Failure
       #: (issuer: String?) -> void
       def initialize(issuer:)
-        super("expired", issuer:, detail: "The bearer token has expired.")
+        super(:expired, issuer:, detail: "The bearer token has expired.")
       end
     end
 
@@ -48,8 +48,8 @@ module Authn
       header, unverified_claims = unverified_parts(encoded)
       iss = unverified_claims["iss"].then { it.to_s if it }
 
-      issuer = @issuers[iss.to_s] or raise Failure.new("unknown_issuer", issuer: iss)
-      raise Failure.new("id_token_as_bearer", issuer: iss) unless issuer.bearer_type?(header)
+      issuer = @issuers[iss.to_s] or raise Failure.new(:unknown_issuer, issuer: iss)
+      raise Failure.new(:id_token_as_bearer, issuer: iss) unless issuer.bearer_type?(header)
 
       verify_signature!(encoded, issuer, header, iss:)
       verify_claims!(encoded, issuer, iss:)
@@ -60,26 +60,26 @@ module Authn
     private def unverified_parts(encoded)
       header = encoded.header
       claims = encoded.unverified_payload
-      raise Failure.new("bad_signature", issuer: nil) unless header.is_a?(Hash) && claims.is_a?(Hash)
+      raise Failure.new(:bad_signature, issuer: nil) unless header.is_a?(Hash) && claims.is_a?(Hash)
 
       [header, claims]
     rescue JWT::DecodeError, JSON::ParserError
-      raise Failure.new("bad_signature", issuer: nil)
+      raise Failure.new(:bad_signature, issuer: nil)
     end
 
     #: (JWT::EncodedToken, Issuer, Hash[String, untyped], iss: String?) -> void
     private def verify_signature!(encoded, issuer, header, iss:)
       kid = header["kid"]
       key = (JwksCache.find(issuer.jwks_url, kid) if kid.is_a?(String))
-      raise Failure.new("unknown_kid", issuer: iss) unless key
+      raise Failure.new(:unknown_kid, issuer: iss) unless key
 
       algorithm, public_key = verification_for(key)
-      raise Failure.new("bad_signature", issuer: iss) unless public_key && header["alg"] == algorithm
+      raise Failure.new(:bad_signature, issuer: iss) unless public_key && header["alg"] == algorithm
 
       # A JWK given as the key verifies with its own alg, so only its public key is passed.
       encoded.verify_signature!(algorithm:, key: public_key)
     rescue JWT::DecodeError
-      raise Failure.new("bad_signature", issuer: iss)
+      raise Failure.new(:bad_signature, issuer: iss)
     end
 
     # The allowlisted algorithm and public key a JWK verifies with, or nil when its type and curve
@@ -111,11 +111,11 @@ module Authn
     rescue JWT::ExpiredSignature, JWT::ImmatureSignature, JWT::InvalidIatError
       raise Expired.new(issuer: iss)
     rescue JWT::InvalidAudError
-      raise Failure.new("wrong_audience", issuer: iss)
+      raise Failure.new(:wrong_audience, issuer: iss)
     rescue JWT::InvalidIssuerError
-      raise Failure.new("unknown_issuer", issuer: iss)
+      raise Failure.new(:unknown_issuer, issuer: iss)
     rescue JWT::DecodeError
-      raise Failure.new("bad_signature", issuer: iss)
+      raise Failure.new(:bad_signature, issuer: iss)
     end
   end
 end

@@ -27,7 +27,7 @@ RSpec.describe Authn::JwksCache, type: :model do
     stub_request(:get, url).to_return(status: 503, body: "")
 
     error = unavailable_from(url)
-    expect(error).to have_attributes(reason: "jwks_unavailable", url:)
+    expect(error).to have_attributes(reason: :jwks_unavailable, url:)
     expect(error.cause).to be_a(HTTPX::HTTPError)
   end
 

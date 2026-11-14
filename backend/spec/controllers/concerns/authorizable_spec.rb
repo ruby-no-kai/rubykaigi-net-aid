@@ -42,7 +42,7 @@ RSpec.describe Authorizable, type: :controller do
     call_as(himari_access_token(roles: %w[viewer]))
 
     expect(response).to have_http_status(:forbidden)
-    expect(payload).to include(error_class: "Errors::ActionDenied", problem_type: "permission-denied", authz_denied_action: "netaid:CreateSite")
+    expect(payload).to include(error_class: "Errors::ActionDenied", problem_type: :"permission-denied", authz_denied_action: "netaid:CreateSite")
   end
 
   it "denies a caller with no role" do
@@ -55,6 +55,6 @@ RSpec.describe Authorizable, type: :controller do
     call_as(nil)
 
     expect(response).to have_http_status(:unauthorized)
-    expect(payload).to include(error_class: "Errors::SignInRequired", problem_type: "unauthenticated", authz_denied_action: "netaid:CreateSite")
+    expect(payload).to include(error_class: "Errors::SignInRequired", problem_type: :unauthenticated, authz_denied_action: "netaid:CreateSite")
   end
 end

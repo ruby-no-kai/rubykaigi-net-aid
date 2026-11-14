@@ -60,7 +60,7 @@ Tags identify the request and apply to every line written after they are set, ne
 | `connect_code` | the Connect error code the controller rendered, problems included |
 | `error_class` | the exception a `rescue_from` handled, or the unhandled one |
 | `problem_type` | the problem's `type` without its URI prefix, such as `permission-denied` |
-| `authn_failure` | why the credentials were refused: `expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired`, `session_revoked` or `sign_in_failed`; or why they could not be checked: `jwks_unavailable`, `refresh_unavailable` |
+| `authn_failure` | a Symbol naming why the credentials were refused: `expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired`, `session_revoked` or `sign_in_failed`; or why they could not be checked: `jwks_unavailable`, `refresh_unavailable` |
 | `authn_issuer` | the unverified `iss` of a refused bearer token |
 | `authn_sign_in_error` | the error OmniAuth redirected to `/auth/failure` with, such as `invalid_credentials`; absent unless it is a plain identifier |
 | `authn_unavailable_cause` | the exception or HTTP status behind `jwks_unavailable` or `refresh_unavailable` |

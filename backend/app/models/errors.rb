@@ -56,7 +56,7 @@ module Errors
     end
 
     #: () -> Hash[Symbol, untyped]
-    def log_fields = {authn_failure: "sign_in_failed", authn_sign_in_error: error}.compact
+    def log_fields = {authn_failure: :sign_in_failed, authn_sign_in_error: error}.compact
   end
 
   # The Authorization header is present but carries no bearer token.
@@ -70,7 +70,7 @@ module Errors
     problem_type :PROBLEM_TYPE_SESSION_EXPIRED
 
     #: () -> Hash[Symbol, untyped]
-    def log_fields = {authn_failure: "session_expired"}
+    def log_fields = {authn_failure: :session_expired}
   end
 
   # The caller may not perform the action the request names.

@@ -216,7 +216,7 @@ An agent acting with a person's token writes as that person. History tells it ap
 - Logging rides on the request's canonical line (021), never a separate line:
   - tags, once authentication resolves the Actor: `actor_issuer`, `actor_subject`, `credential_id`; `episode` once authorisation resolves it
   - the sign-in callback sets the same tags for the Actor it signs in
-  - on an authentication failure, payload `authn_failure` (`expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired`, `session_revoked`, `sign_in_failed`) and `authn_issuer` (from the unverified `iss`); never the token
+  - on an authentication failure, payload `authn_failure` (`expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired`, `session_revoked`, `sign_in_failed`, each a Symbol) and `authn_issuer` (from the unverified `iss`); never the token
   - `/auth/failure` reports `sign_in_failed`, with OmniAuth's error as `authn_sign_in_error` when it is a plain identifier
   - when an issuer cannot be reached, `authn_failure` `jwks_unavailable` or `refresh_unavailable` and `authn_unavailable_cause` (the exception or HTTP status)
   - on a denial, payload `authz_denied_action`
@@ -356,3 +356,5 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - This spec's body now describes the code as it stands: the `developer` issuer, `Authn::Issuers`, the `authn_pb` session message, POST-only sign-out, the full configuration, the error classes, and `RefreshSession` in `viewer_service.proto`.
 - 2026-11-14: Review: errors raised by models are problems themselves. `Authn::BearerVerifier::Failure` and `::Expired` replace `Errors::BearerTokenRefused` and `::BearerTokenExpired`, `Authn::SessionRefresher::Revoked` replaces `Errors::SessionRevoked`, and `Authn::Issuer::IssuerUnavailable` replaces `Authn::IssuerUnavailable` and `Errors::IssuerUnavailable`. Each error declares its canonical line fields in `log_fields`, which `ActionLogPayloadable` merges. `Auth::SessionsController` renders problems through `Problem::Rescuable`. Outbound HTTP goes through HTTPX (`NetAid::Http`) with a User-Agent.
 - 2026-11-14: Authentication configuration and the cookie session middleware moved from `config/application.rb` and `config/environments/*.rb` to `config/initializers/authn.rb`.
+- 2026-11-14: Review fixes.
+  - `authn_failure` values are Symbols, as are the `reason` of `Authn::BearerVerifier::Failure` and `Authn::Issuer::IssuerUnavailable`.

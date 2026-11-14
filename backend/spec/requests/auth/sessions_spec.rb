@@ -46,7 +46,7 @@ RSpec.describe "Browser sign-in" do
 
       expect(response).to have_http_status(:unauthorized)
       expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(
-        authn_failure: "sign_in_failed", authn_sign_in_error: "ActionController::InvalidAuthenticityToken",
+        authn_failure: :sign_in_failed, authn_sign_in_error: "ActionController::InvalidAuthenticityToken",
       )
     end
 
@@ -57,7 +57,7 @@ RSpec.describe "Browser sign-in" do
       get "/auth/failure", params: {message: "<script>"}
 
       payload = logger.events.find { it.message.start_with?("Completed") }.payload
-      expect(payload).to include(authn_failure: "sign_in_failed")
+      expect(payload).to include(authn_failure: :sign_in_failed)
       expect(payload).not_to have_key(:authn_sign_in_error)
     end
 
@@ -136,7 +136,7 @@ RSpec.describe "Browser sign-in" do
       get "/auth/himari/callback"
 
       expect(response).to have_http_status(:unauthorized)
-      expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: "wrong_audience")
+      expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: :wrong_audience)
       expect(viewer.actor).to be_nil
     ensure
       OmniAuth.config.test_mode = false
@@ -153,7 +153,7 @@ RSpec.describe "Browser sign-in" do
       sign_in_as
 
       expect(response).to have_http_status(:service_unavailable)
-      expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: "jwks_unavailable")
+      expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(authn_failure: :jwks_unavailable)
       expect(viewer.actor).to be_nil
     end
   end
@@ -234,7 +234,7 @@ RSpec.describe "Browser sign-in" do
 
       line = logger.events.find { it.message.start_with?("Completed") }
       expect(line.level).to eq(:info)
-      expect(line.payload).to include(authn_failure: "session_expired")
+      expect(line.payload).to include(authn_failure: :session_expired)
     end
   end
 

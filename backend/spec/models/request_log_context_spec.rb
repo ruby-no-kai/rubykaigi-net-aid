@@ -73,10 +73,10 @@ RSpec.describe RequestLogContext, type: :model do
     end
 
     it "reports the added fields beside the counters" do
-      described_class.add_fields(authn_failure: "expired")
+      described_class.add_fields(authn_failure: :expired)
       described_class.increment(:occ_retries)
 
-      expect(described_class.log_payload).to eq(authn_failure: "expired", occ_retries: 1)
+      expect(described_class.log_payload).to eq(authn_failure: :expired, occ_retries: 1)
     end
   end
 

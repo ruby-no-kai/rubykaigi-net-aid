@@ -59,15 +59,15 @@ RSpec.describe "Bearer authentication" do
   end
 
   {
-    "an expired token" => [-> { himari_access_token(exp: Time.now.to_i - 60, iat: Time.now.to_i - 3600) }, "expired", AuthnHelper::HIMARI],
-    "a token for another audience" => [-> { himari_access_token(client_id: "amc") }, "wrong_audience", AuthnHelper::HIMARI],
+    "an expired token" => [-> { himari_access_token(exp: Time.now.to_i - 60, iat: Time.now.to_i - 3600) }, :expired, AuthnHelper::HIMARI],
+    "a token for another audience" => [-> { himari_access_token(client_id: "amc") }, :wrong_audience, AuthnHelper::HIMARI],
     "a token from an untrusted issuer" => [
-      -> { sign_token(standard_claims(iss: "https://idp.invalid", aud: "net-aid-cli", sub: "x")) }, "unknown_issuer", "https://idp.invalid"
+      -> { sign_token(standard_claims(iss: "https://idp.invalid", aud: "net-aid-cli", sub: "x")) }, :unknown_issuer, "https://idp.invalid"
     ],
-    "an ID token" => [-> { himari_id_token }, "id_token_as_bearer", AuthnHelper::HIMARI],
+    "an ID token" => [-> { himari_id_token }, :id_token_as_bearer, AuthnHelper::HIMARI],
     "a token naming an unknown kid" => [
       -> { sign_token(JWT.decode(himari_access_token, nil, false).first, key: AuthnHelper.other_rsa_key(kid: "gone"), header: {typ: "at+jwt"}) },
-      "unknown_kid", AuthnHelper::HIMARI
+      :unknown_kid, AuthnHelper::HIMARI
     ]
   }.each do |description, (token, reason, issuer)|
     it "refuses #{description}" do
@@ -76,7 +76,7 @@ RSpec.describe "Bearer authentication" do
       expect(error.code).to eq("unauthenticated")
       expect(problem_type_of(error)).to eq("unauthenticated")
       expect(completed_line.level).to eq(:info)
-      error_class = reason == "expired" ? "Authn::BearerVerifier::Expired" : "Authn::BearerVerifier::Failure"
+      error_class = reason == :expired ? "Authn::BearerVerifier::Expired" : "Authn::BearerVerifier::Failure"
       expect(completed_line.payload).to include(authn_failure: reason, authn_issuer: issuer, error_class:)
       expect(completed_line.named_tags.keys).not_to include(:actor_subject)
     end
@@ -90,7 +90,7 @@ RSpec.describe "Bearer authentication" do
     expect(error.code).to eq("unavailable")
     expect(problem_type_of(error)).to eq("unavailable")
     expect(completed_line.payload).to include(
-      authn_failure: "jwks_unavailable", authn_unavailable_cause: start_with("HTTPX::"),
+      authn_failure: :jwks_unavailable, authn_unavailable_cause: start_with("HTTPX::"),
     )
   end
 

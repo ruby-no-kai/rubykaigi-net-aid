@@ -30,11 +30,11 @@ RSpec.describe Authn::BearerVerifier, type: :model do
     end
 
     it "refuses another client's token" do
-      expect(failure_of(himari_access_token(client_id: "amc"))).to eq(["wrong_audience", AuthnHelper::HIMARI])
+      expect(failure_of(himari_access_token(client_id: "amc"))).to eq([:wrong_audience, AuthnHelper::HIMARI])
     end
 
     it "refuses an ID token" do
-      expect(failure_of(himari_id_token)).to eq(["id_token_as_bearer", AuthnHelper::HIMARI])
+      expect(failure_of(himari_id_token)).to eq([:id_token_as_bearer, AuthnHelper::HIMARI])
     end
 
     it "keeps no roles when the claim is absent" do
@@ -59,7 +59,7 @@ RSpec.describe Authn::BearerVerifier, type: :model do
     end
 
     it "refuses a token for another audience" do
-      expect(failure_of(github_actions_token(aud: "sts.amazonaws.com"))).to eq(["wrong_audience", AuthnHelper::GITHUB_ACTIONS])
+      expect(failure_of(github_actions_token(aud: "sts.amazonaws.com"))).to eq([:wrong_audience, AuthnHelper::GITHUB_ACTIONS])
     end
   end
 
@@ -77,34 +77,34 @@ RSpec.describe Authn::BearerVerifier, type: :model do
   describe "refusals" do
     it "refuses an expired token" do
       token = himari_access_token(exp: Time.now.to_i - 60, iat: Time.now.to_i - 3600)
-      expect(failure_of(token)).to eq(["expired", AuthnHelper::HIMARI])
+      expect(failure_of(token)).to eq([:expired, AuthnHelper::HIMARI])
     end
 
     it "refuses a token that is not yet valid" do
-      expect(failure_of(himari_access_token(nbf: Time.now.to_i + 600))).to eq(["expired", AuthnHelper::HIMARI])
+      expect(failure_of(himari_access_token(nbf: Time.now.to_i + 600))).to eq([:expired, AuthnHelper::HIMARI])
     end
 
     it "refuses an issuer it does not trust" do
       token = sign_token(standard_claims(iss: "https://idp.invalid", aud: "net-aid-cli", sub: "x"))
-      expect(failure_of(token)).to eq(["unknown_issuer", "https://idp.invalid"])
+      expect(failure_of(token)).to eq([:unknown_issuer, "https://idp.invalid"])
     end
 
     it "refuses a token signed by another key under a known kid" do
       other = AuthnHelper.other_rsa_key(kid: "rsa-1")
       claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
-      expect(failure_of(sign_token(claims, key: other, header: {typ: "at+jwt"}))).to eq(["bad_signature", AuthnHelper::HIMARI])
+      expect(failure_of(sign_token(claims, key: other, header: {typ: "at+jwt"}))).to eq([:bad_signature, AuthnHelper::HIMARI])
     end
 
     it "refuses an unsigned token" do
       claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
       token = JWT.encode(claims, nil, "none", {typ: "at+jwt", kid: "rsa-1"})
-      expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
+      expect(failure_of(token)).to eq([:bad_signature, AuthnHelper::HIMARI])
     end
 
     it "refuses an HMAC token keyed with the public key" do
       claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
       token = JWT.encode(claims, AuthnHelper.rsa_key.public_key.to_pem, "HS256", {typ: "at+jwt", kid: "rsa-1"})
-      expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
+      expect(failure_of(token)).to eq([:bad_signature, AuthnHelper::HIMARI])
     end
 
     it "refuses a key whose alg is outside the allowlist" do
@@ -112,22 +112,22 @@ RSpec.describe Authn::BearerVerifier, type: :model do
       claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
       token = sign_token(claims, key: AuthnHelper.ec_p384_key, header: {typ: "at+jwt"})
 
-      expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
+      expect(failure_of(token)).to eq([:bad_signature, AuthnHelper::HIMARI])
     end
 
     it "refuses an allowlisted key used with another algorithm" do
       claims = standard_claims(iss: AuthnHelper::HIMARI, aud: "net-aid-cli", sub: "x").merge(client_id: "net-aid-cli")
       token = sign_token(claims, alg: "RS384", header: {typ: "at+jwt"})
 
-      expect(failure_of(token)).to eq(["bad_signature", AuthnHelper::HIMARI])
+      expect(failure_of(token)).to eq([:bad_signature, AuthnHelper::HIMARI])
     end
 
     it "refuses a token missing a claim its issuer maps" do
-      expect(failure_of(github_actions_token(run_id: nil))).to eq(["bad_signature", AuthnHelper::GITHUB_ACTIONS])
+      expect(failure_of(github_actions_token(run_id: nil))).to eq([:bad_signature, AuthnHelper::GITHUB_ACTIONS])
     end
 
     it "refuses something that is not a JWT" do
-      expect(failure_of("not-a-jwt")).to eq(["bad_signature", nil])
+      expect(failure_of("not-a-jwt")).to eq([:bad_signature, nil])
     end
   end
 
@@ -152,16 +152,16 @@ RSpec.describe Authn::BearerVerifier, type: :model do
       end
 
       it "refuses an RSA key used with another algorithm" do
-        expect(failure_of(sign_token(claims, key: rsa, alg: "RS512", header: {typ: "at+jwt"})).first).to eq("bad_signature")
+        expect(failure_of(sign_token(claims, key: rsa, alg: "RS512", header: {typ: "at+jwt"})).first).to eq(:bad_signature)
       end
 
       it "refuses a curve outside the allowlist" do
-        expect(failure_of(sign_token(claims, key: p384, alg: "ES384", header: {typ: "at+jwt"})).first).to eq("bad_signature")
+        expect(failure_of(sign_token(claims, key: p384, alg: "ES384", header: {typ: "at+jwt"})).first).to eq(:bad_signature)
       end
     end
 
     it "refuses a kid the JWKS lacks" do
-      expect(failure_of(rotated_token)).to eq(["unknown_kid", AuthnHelper::HIMARI])
+      expect(failure_of(rotated_token)).to eq([:unknown_kid, AuthnHelper::HIMARI])
     end
 
     it "caches the JWKS until a token names an unknown kid, then refetches it" do
@@ -181,8 +181,8 @@ RSpec.describe Authn::BearerVerifier, type: :model do
     it "refetches at most once per interval" do
       verify(himari_access_token)
 
-      expect(failure_of(rotated_token).first).to eq("unknown_kid")
-      expect(failure_of(rotated_token).first).to eq("unknown_kid")
+      expect(failure_of(rotated_token).first).to eq(:unknown_kid)
+      expect(failure_of(rotated_token).first).to eq(:unknown_kid)
       expect(a_request(:get, "#{AuthnHelper::HIMARI}/public/jwks")).to have_been_made.once
     end
   end
