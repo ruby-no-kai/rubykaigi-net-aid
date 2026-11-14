@@ -12,6 +12,10 @@ module Errors
   class ApiError < StandardError
     include Protobufable::Problem::Typeable
 
+    # Fields this occurrence adds to the canonical log line.
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {}
+
     #: () -> String
     def self.problem_type_enum = "rubykaigi.net_aid.ProblemType"
 
@@ -25,16 +29,38 @@ module Errors
   end
 
   # An action other than GetViewer and RefreshSession was called without credentials.
-  class SignInRequired < Unauthenticated; end
+  class SignInRequired < Unauthenticated
+    #: String
+    attr_reader :action
+
+    #: (action: String) -> void
+    def initialize(action:)
+      @action = action
+      super(detail: "#{action} requires signing in.")
+    end
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authz_denied_action: action}
+  end
+
+  # The browser sign-in failed at the identity provider or in OmniAuth. `error` is what OmniAuth
+  # reports, such as `invalid_credentials` or an exception's class.
+  class SignInFailed < Unauthenticated
+    #: String?
+    attr_reader :error
+
+    #: (error: String?) -> void
+    def initialize(error:)
+      @error = error
+      super(detail: "Signing in failed.")
+    end
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authn_failure: "sign_in_failed", authn_sign_in_error: error}.compact
+  end
 
   # The Authorization header is present but carries no bearer token.
   class MalformedAuthorization < Unauthenticated; end
-
-  # A bearer token was refused: an unknown issuer or key, a bad signature, or the wrong audience.
-  class BearerTokenRefused < Unauthenticated; end
-
-  # A bearer token is past its expiry.
-  class BearerTokenExpired < Unauthenticated; end
 
   # RefreshSession was called by a request carrying no browser session.
   class NoSessionToRefresh < Unauthenticated; end
@@ -42,11 +68,9 @@ module Errors
   # The session's himari access token has expired, and ViewerService.RefreshSession renews it.
   class SessionExpired < ApiError
     problem_type :PROBLEM_TYPE_SESSION_EXPIRED
-  end
 
-  # himari refused to refresh the session. The session is left as it is.
-  class SessionRevoked < ApiError
-    problem_type :PROBLEM_TYPE_SESSION_REVOKED
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authn_failure: "session_expired"}
   end
 
   # The caller may not perform the action the request names.
@@ -55,7 +79,19 @@ module Errors
   end
 
   # No role of the caller permits the RPC's action.
-  class ActionDenied < PermissionDenied; end
+  class ActionDenied < PermissionDenied
+    #: String
+    attr_reader :action
+
+    #: (action: String) -> void
+    def initialize(action:)
+      @action = action
+      super(detail: "The caller may not perform #{action}.")
+    end
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authz_denied_action: action}
+  end
 
   # The resource the request names does not exist.
   class NotFound < ApiError
@@ -142,7 +178,4 @@ module Errors
   class Unavailable < ApiError
     problem_type :PROBLEM_TYPE_UNAVAILABLE
   end
-
-  # himari or another trusted issuer could not be reached to verify or renew credentials.
-  class IssuerUnavailable < Unavailable; end
 end

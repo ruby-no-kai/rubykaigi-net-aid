@@ -3,8 +3,8 @@
 
 # Resolves the caller of a request into Current.actor, from the browser session first and then an
 # `Authorization: Bearer` token. A request without credentials stays anonymous. A session whose
-# access token has expired answers Errors::SessionExpired without refreshing it, and refused
-# credentials answer an Errors::Unauthenticated.
+# access token has expired answers Errors::SessionExpired without refreshing it, and a refused
+# bearer token answers Authn::BearerVerifier::Failure.
 #
 # @requires_ancestor: ActionController::Metal
 module Authenticatable
@@ -58,7 +58,6 @@ module Authenticatable
     return unless browser_session
 
     if browser_session.expired?
-      RequestLogContext.add_fields(authn_failure: "session_expired")
       raise Errors::SessionExpired.new(detail: "The session has expired. Refresh it with ViewerService.RefreshSession.")
     end
 
@@ -74,10 +73,5 @@ module Authenticatable
     raise Errors::MalformedAuthorization.new(detail: "The Authorization header carries no bearer token.") unless token
 
     Authn::BearerVerifier.new.verify(token, user_agent: request_user_agent)
-  rescue Authn::BearerVerifier::Failure => e
-    RequestLogContext.add_fields(**{authn_failure: e.reason, authn_issuer: e.issuer&.truncate(255)}.compact)
-    raise Errors::BearerTokenExpired.new(detail: "The bearer token has expired.") if e.reason == "expired"
-
-    raise Errors::BearerTokenRefused.new(detail: "The bearer token is not accepted.")
   end
 end

@@ -5,6 +5,7 @@ module Auth
   # Signs a browser in through OmniAuth and out again. ActionController::Base supplies the CSRF
   # token that omniauth-rails_csrf_protection requires on the POST starting a sign-in.
   class SessionsController < ActionController::Base # rubocop:disable Rails/ApplicationController
+    include Problem::Rescuable
     include ActionLogPayloadable
 
     # SameSite=Lax keeps the cookie off a cross-site POST, and the origin check refuses one.
@@ -29,12 +30,6 @@ module Auth
       reset_session
       browser_session.store(session)
       redirect_to return_to
-    rescue Authn::BearerVerifier::Failure => e
-      RequestLogContext.add_fields(**{authn_failure: e.reason, authn_issuer: e.issuer&.truncate(255)}.compact)
-      render :failure, status: :unauthorized
-    rescue Authn::IssuerUnavailable => e
-      RequestLogContext.add_fields(**e.log_fields)
-      render :failure, status: :service_unavailable
     end
 
     # OmniAuth redirects here with the error it met, such as `invalid_credentials` or the class of
@@ -42,17 +37,19 @@ module Auth
     #: () -> void
     def failure
       error = params[:message]
-      RequestLogContext.add_fields(**{
-        authn_failure: "sign_in_failed",
-        authn_sign_in_error: (error if error.is_a?(String) && error.match?(/\A[\w:]{1,64}\z/))
-      }.compact)
-      render :failure, status: :unauthorized
+      raise Errors::SignInFailed.new(error: (error if error.is_a?(String) && error.match?(/\A[\w:]{1,64}\z/)))
     end
 
     #: () -> void
     def destroy
       reset_session
       redirect_to "/", status: :see_other
+    end
+
+    # A browser gets a page rather than a problem document, with the problem's status.
+    #: (Problem::Details, untyped) -> void
+    private def render_problem(problem, _error)
+      render :failure, status: problem.status
     end
 
     # Only a path on this origin, starting with a single `/`, so sign-in is no open redirect.

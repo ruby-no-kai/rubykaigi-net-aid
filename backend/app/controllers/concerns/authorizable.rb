@@ -21,10 +21,9 @@ module Authorizable
     actor = current_actor_maybe
     return if Authz::Policy.permit?(actor, action, episode:)
 
-    RequestLogContext.add_fields(authz_denied_action: action)
-    raise Errors::SignInRequired.new(detail: "#{action} requires signing in.") unless actor
+    raise Errors::SignInRequired.new(action:) unless actor
 
-    raise Errors::ActionDenied.new(detail: "The caller may not perform #{action}.")
+    raise Errors::ActionDenied.new(action:)
   end
 
   # The catch-all for a method the service does not declare serves no RPC, and answers 404 itself.

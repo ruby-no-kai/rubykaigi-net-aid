@@ -7,10 +7,21 @@ module Authn
   class SessionRefresher
     TIMEOUT = 10 #: Integer
 
-    # himari refused the refresh, or the session holds nothing to refresh with.
-    class Revoked < StandardError; end
+    # himari refused the refresh, or the session holds nothing to refresh with. The session is left
+    # as it is, as a refresh in another tab may have just rewritten it.
+    class Revoked < Errors::ApiError
+      problem_type :PROBLEM_TYPE_SESSION_REVOKED
 
-    # Raises IssuerUnavailable when himari cannot be reached or answers other than a grant or a
+      #: (String) -> void
+      def initialize(message)
+        super(message, detail: "The session could not be refreshed. Sign in again.")
+      end
+
+      #: () -> Hash[Symbol, untyped]
+      def log_fields = {authn_failure: "session_revoked"}
+    end
+
+    # Raises Issuer::IssuerUnavailable when himari cannot be reached or answers other than a grant or a
     # refusal.
     #: (BrowserSession) -> BrowserSession
     def refresh(browser_session)
@@ -38,14 +49,14 @@ module Authn
         .basic_auth(authn.session_client_id, authn.session_client_secret.to_s)
         .post(uri.to_s, form: {"grant_type" => "refresh_token", "refresh_token" => refresh_token})
       if response.is_a?(HTTPX::ErrorResponse)
-        raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s), cause: response.error
+        raise Issuer::IssuerUnavailable.new("refresh_unavailable", url: uri.to_s), cause: response.error
       end
 
       body = parse_body(response)
       return body if (200..299).cover?(response.status) && body.is_a?(Hash)
       raise Revoked, "himari refused the refresh" if body.is_a?(Hash) && body["error"] == "invalid_grant"
 
-      raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s, detail: "HTTP #{response.status}")
+      raise Issuer::IssuerUnavailable.new("refresh_unavailable", url: uri.to_s, answer: "HTTP #{response.status}")
     end
 
     #: (HTTPX::Response) -> untyped

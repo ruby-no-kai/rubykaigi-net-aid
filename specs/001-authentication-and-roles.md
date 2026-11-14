@@ -46,12 +46,12 @@ The authenticated caller becomes the Actor that the changelog and Mutation journ
 3. The callback verifies the access token as a bearer token is verified (audience `net-aid`) and stores in the encrypted cookie session a `rubykaigi.net_aid.server.BrowserSession` message, Base64 under the key `authn_pb`: the Actor, the roles, the access token's expiry, the access token and the refresh token. A value that does not decode reads as signed out.
 4. An RPC whose session has an expired access token never refreshes it. It answers `Errors::SessionExpired`.
 5. The frontend then calls `ViewerService.RefreshSession` once, single-flight across concurrent callers in the tab, and retries the failed calls. `RefreshSession` uses the refresh token, and himari re-runs its rules, so role changes and removals take effect here. The session then holds the new tokens and roles.
-6. A refresh that himari refuses (`invalid_grant`) answers `Errors::SessionRevoked` and leaves the cookie as it is. The frontend calls `GetViewer`, and sends the person to sign in again if it still answers `SessionExpired`.
+6. A refresh that himari refuses (`invalid_grant`) answers `Authn::SessionRefresher::Revoked` and leaves the cookie as it is. The frontend calls `GetViewer`, and sends the person to sign in again if it still answers `SessionExpired`.
 7. `POST /auth/sign_out` clears the session. It is POST only, and refuses a request whose `Sec-Fetch-Site` or `Origin` names another site.
 
 - The cookie is written only when the session's contents change (`NetAid::SessionCookieStore`), so an RPC that only read the session never puts back a refresh token that a concurrent `RefreshSession` rotated. Every write carries the 14-day expiry.
 - Two tabs refreshing at the same moment race on the refresh token. The loser's refresh fails, and as a failed refresh writes nothing, the winner's cookie stays and the loser's `GetViewer` finds the session renewed.
-- When himari cannot be reached, or answers the refresh with anything but a grant or `invalid_grant`, `RefreshSession` answers `Errors::IssuerUnavailable` (`unavailable`) and keeps the session.
+- When himari cannot be reached, or answers the refresh with anything but a grant or `invalid_grant`, `RefreshSession` answers `Authn::Issuer::IssuerUnavailable` (`unavailable`) and keeps the session.
 - Lifetimes, set by the himari rule for `net-aid`: access token 1 hour, refresh token 14 days. The refresh token's lifetime is an absolute cap from sign-in, so a session lasts at most 14 days.
 - A phone offline past the cap keeps its outbox (006). The person signs in again and the outbox uploads then.
 
@@ -161,21 +161,22 @@ An agent acting with a person's token writes as that person. History tells it ap
   | `PROBLEM_TYPE_PERMISSION_DENIED` (`permission-denied`, 403) | the policy denies the action |
   | `PROBLEM_TYPE_UNAVAILABLE` (`unavailable`, 503) | an issuer's JWKS or himari's token endpoint cannot be reached; retry later |
 
-- Each failure raises its own class, a subclass that renders as its parent's problem type, so `error_class` on the canonical line names it:
+- Each failure raises its own class, a subclass that renders as its parent's problem type, so `error_class` on the canonical line names it. An error raised by a model is itself the problem, never wrapped by the controller, and declares the canonical line's fields it adds through `Errors::ApiError#log_fields`:
 
   | Class | Problem type | When |
   |---|---|---|
   | `Errors::SignInRequired` | `unauthenticated` | an anonymous caller calls an RPC other than `GetViewer` and `RefreshSession` |
+  | `Errors::SignInFailed` | `unauthenticated` | OmniAuth redirects to `/auth/failure` |
   | `Errors::MalformedAuthorization` | `unauthenticated` | the `Authorization` header carries no bearer token |
-  | `Errors::BearerTokenRefused` | `unauthenticated` | a bearer token is refused for any reason but expiry |
-  | `Errors::BearerTokenExpired` | `unauthenticated` | a bearer token is past its expiry |
+  | `Authn::BearerVerifier::Failure` | `unauthenticated` | a bearer token is refused for any reason but expiry |
+  | `Authn::BearerVerifier::Expired` | `unauthenticated` | a bearer token is past its expiry |
   | `Errors::NoSessionToRefresh` | `unauthenticated` | `RefreshSession` without a session |
   | `Errors::SessionExpired` | `session-expired` | the session's access token has expired |
-  | `Errors::SessionRevoked` | `session-revoked` | himari refused the refresh |
+  | `Authn::SessionRefresher::Revoked` | `session-revoked` | himari refused the refresh |
   | `Errors::ActionDenied` | `permission-denied` | no statement allows the action, or one denies it |
-  | `Errors::IssuerUnavailable` | `unavailable` | `Authn::IssuerUnavailable` from the JWKS cache or `Authn::SessionRefresher` |
+  | `Authn::Issuer::IssuerUnavailable` | `unavailable` | the JWKS cache or `Authn::SessionRefresher` cannot reach an issuer |
 
-- The sign-in callback answers a failure page: 401 for a refused access token, 503 when himari's JWKS cannot be fetched.
+- `Auth::SessionsController` includes `Problem::Rescuable` and renders a problem as its failure page with the problem's status: 401 for a refused access token or a failed sign-in, 503 when himari's JWKS cannot be fetched.
 
 ## Drawbacks
 
@@ -252,12 +253,13 @@ An agent acting with a person's token writes as that person. History tells it ap
   - `Authn::MachineRoles`: maps machine subjects to roles.
   - `Authn::BrowserSession`: the session's Actor and himari tokens, read from and written to the cookie session as a `rubykaigi.net_aid.server.BrowserSession` message (`proto/rubykaigi/net_aid/server/browser_session.proto`).
   - `Authn::SessionRefresher`: refreshes the session's tokens with himari, called only by `RefreshSession`.
-  - `Authn::IssuerUnavailable`: an issuer's JWKS or token endpoint could not be reached.
+  - `Authn::Issuer::IssuerUnavailable`: an issuer's JWKS or token endpoint could not be reached.
+- `lib/net_aid/http.rb`: `NetAid::Http.session`, the HTTPX session outbound requests start from, with the app's User-Agent. The `NetAid/NetHttp` cop keeps app code off `Net::HTTP`.
 - `lib/net_aid/session_cookie_store.rb`: `NetAid::SessionCookieStore`, the encrypted cookie store, writing the `__Host-Http-netaid-sess` cookie only when the session's contents change.
 - `app/controllers/concerns/authenticatable.rb`: `before_action :authenticate`, reading the session first, then `Authorization: Bearer`.
 - `app/controllers/concerns/authorizable.rb`: `before_action :authorize_rpc!`, deriving the action from the routed RPC, and `authorize!` for further checks.
 - `app/models/authz/policy.rb`: `Authz::Policy.permit?(actor, action, episode: nil)`, pooling the statements of all the Actor's roles; an action is permitted when one allows it and none denies it. `app/models/authz/statement.rb`: `Authz::Statement`, a plain class with `effect` (`:allow` or `:deny`) and either `actions` or `not_actions` (later `episodes`). Role statements are defined in code.
-- `app/models/errors.rb`: `Errors::SessionExpired`, `Errors::SessionRevoked`, `Errors::Unavailable` and the specific classes in [Inside the backend](#inside-the-backend); `PROBLEM_TYPE_SESSION_EXPIRED`, `PROBLEM_TYPE_SESSION_REVOKED` and `PROBLEM_TYPE_UNAVAILABLE` in `problem.proto`.
+- `app/models/errors.rb`: `Errors::SessionExpired`, `Errors::Unavailable` and the specific classes in [Inside the backend](#inside-the-backend); `PROBLEM_TYPE_SESSION_EXPIRED`, `PROBLEM_TYPE_SESSION_REVOKED` and `PROBLEM_TYPE_UNAVAILABLE` in `problem.proto`.
 - `app/controllers/auth/sessions_controller.rb`: `GET /auth/himari`, `/auth/himari/callback`, `/auth/failure`, `POST /auth/sign_out`; in development and test also `/auth/developer` (OmniAuth developer strategy: a form taking a subject, a name and roles). Needs the cookies and session middleware, which `ActionController::API` apps omit by default.
 - Configuration in `config/application.rb` under `Rails.configuration.x.authn`:
 
@@ -353,3 +355,4 @@ Implementation complete in this repository. The himari clients and rule in rubyk
   - The sign-in callback tags its line with the Actor, and `/auth/failure` reports `authn_failure` `sign_in_failed` with `authn_sign_in_error`.
   - `spec/proto/rpc_actions_spec.rb` walks the services declared in `proto/` rather than the routes, which connect_rpc_rails draws for every declared RPC whether or not an action implements it.
   - This spec's body now describes the code as it stands: the `developer` issuer, `Authn::Issuers`, the `authn_pb` session message, POST-only sign-out, the full configuration, the error classes, and `RefreshSession` in `viewer_service.proto`.
+- 2026-11-14: Review: errors raised by models are problems themselves. `Authn::BearerVerifier::Failure` and `::Expired` replace `Errors::BearerTokenRefused` and `::BearerTokenExpired`, `Authn::SessionRefresher::Revoked` replaces `Errors::SessionRevoked`, and `Authn::Issuer::IssuerUnavailable` replaces `Authn::IssuerUnavailable` and `Errors::IssuerUnavailable`. Each error declares its canonical line fields in `log_fields`, which `ActionLogPayloadable` merges. `Auth::SessionsController` renders problems through `Problem::Rescuable`. Outbound HTTP goes through HTTPX (`NetAid::Http`) with a User-Agent.

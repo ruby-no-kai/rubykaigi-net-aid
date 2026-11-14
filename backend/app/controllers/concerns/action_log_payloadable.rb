@@ -27,7 +27,8 @@ module ActionLogPayloadable
     {
       connect_code: RequestLogContext.connect_code,
       error_class: error&.class&.name,
-      problem_type: (problem_type_for(problem) if problem)
+      problem_type: (problem_type_for(problem) if problem),
+      **(problem.is_a?(Errors::ApiError) ? problem.log_fields : {})
     }.compact
   end
 

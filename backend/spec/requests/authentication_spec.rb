@@ -77,7 +77,8 @@ RSpec.describe "Bearer authentication" do
       expect(error.code).to eq("unauthenticated")
       expect(problem_type_of(error)).to eq("unauthenticated")
       expect(completed_line.level).to eq(:info)
-      expect(completed_line.payload).to include(authn_failure: reason, authn_issuer: issuer)
+      error_class = reason == "expired" ? "Authn::BearerVerifier::Expired" : "Authn::BearerVerifier::Failure"
+      expect(completed_line.payload).to include(authn_failure: reason, authn_issuer: issuer, error_class:)
       expect(completed_line.named_tags.keys).not_to include(:actor_subject)
     end
   end

@@ -8,20 +8,32 @@ module Authn
     # Tolerated clock skew between an issuer and this server.
     LEEWAY = 30 #: Integer
 
-    # The token is not accepted. `reason` is one of the authn_failure values the canonical log
-    # line reports, and `issuer` the unverified `iss`.
-    class Failure < StandardError
+    # The token is not accepted: an unknown issuer or key, a bad signature, or the wrong audience.
+    # `reason` is one of the authn_failure values the canonical log line reports, and `issuer` the
+    # unverified `iss`.
+    class Failure < Errors::Unauthenticated
       #: String
       attr_reader :reason
 
       #: String?
       attr_reader :issuer
 
-      #: (String reason, issuer: String?) -> void
-      def initialize(reason, issuer:)
+      #: (String reason, issuer: String?, ?detail: String) -> void
+      def initialize(reason, issuer:, detail: "The bearer token is not accepted.")
         @reason = reason
         @issuer = issuer
-        super("bearer token refused: #{reason}")
+        super("bearer token refused: #{reason}", detail:)
+      end
+
+      #: () -> Hash[Symbol, untyped]
+      def log_fields = {authn_failure: reason, authn_issuer: issuer&.truncate(255)}.compact
+    end
+
+    # The token is past its expiry.
+    class Expired < Failure
+      #: (issuer: String?) -> void
+      def initialize(issuer:)
+        super("expired", issuer:, detail: "The bearer token has expired.")
       end
     end
 
@@ -97,7 +109,7 @@ module Authn
         {required: ["sub", "exp", "iat", *issuer.required_claims]},
       )
     rescue JWT::ExpiredSignature, JWT::ImmatureSignature, JWT::InvalidIatError
-      raise Failure.new("expired", issuer: iss)
+      raise Expired.new(issuer: iss)
     rescue JWT::InvalidAudError
       raise Failure.new("wrong_audience", issuer: iss)
     rescue JWT::InvalidIssuerError

@@ -8,7 +8,7 @@ RSpec.describe Authn::JwksCache, type: :model do
 
   def unavailable_from(url)
     described_class.find(url, "rsa-1")
-  rescue Authn::IssuerUnavailable => e
+  rescue Authn::Issuer::IssuerUnavailable => e
     e
   end
 

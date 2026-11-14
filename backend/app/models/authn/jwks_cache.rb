@@ -20,7 +20,7 @@ module Authn
     @locks = Concurrent::Map.new #: Concurrent::Map
 
     # The signing key `kid` names in the JWKS at `url`, or nil when the JWKS has none. Raises
-    # IssuerUnavailable when the JWKS has to be fetched and cannot be.
+    # Issuer::IssuerUnavailable when the JWKS has to be fetched and cannot be.
     #: (String url, String kid) -> JWT::JWK::KeyBase?
     def self.find(url, kid)
       entry = @entries[url] #: Entry?
@@ -50,14 +50,14 @@ module Authn
     private_class_method def self.refresh(url)
       failure = @failures[url] #: Failure?
       if failure && failure.failed_at >= monotonic_now - FAILURE_INTERVAL
-        raise IssuerUnavailable.new("jwks_unavailable", url:), cause: failure.error
+        raise Issuer::IssuerUnavailable.new("jwks_unavailable", url:), cause: failure.error
       end
 
       begin
         keys = fetch(url)
       rescue StandardError => e
         @failures[url] = Failure.new(error: e, failed_at: monotonic_now)
-        raise IssuerUnavailable.new("jwks_unavailable", url:)
+        raise Issuer::IssuerUnavailable.new("jwks_unavailable", url:)
       end
       @failures.delete(url)
       @entries[url] = Entry.new(keys:, fetched_at: monotonic_now)
