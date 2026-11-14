@@ -18,8 +18,6 @@ module Api
 
     rescue_from ActiveRecord::RecordInvalid, with: :render_invalid_record
 
-    before_action :verify_connect_request_origin!
-
     # A classified exception's message can quote internals, so only the status text goes out.
     #: (Exception) -> ConnectRpcRails::Error
     private def connect_error_for(exception)
