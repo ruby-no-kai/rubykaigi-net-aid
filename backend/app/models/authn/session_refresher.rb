@@ -1,8 +1,6 @@
 # typed: strict
 # frozen_string_literal: true
 
-require "net/http"
-
 module Authn
   # Renews a browser session's himari tokens with its refresh token. himari re-runs its rules on a
   # refresh, so role changes and removals take effect here.
@@ -35,25 +33,22 @@ module Authn
     private def request_grant(refresh_token)
       authn = Rails.configuration.x.authn
       uri = Must.be_a(URI("#{authn.himari_issuer}/public/oidc/token"), URI::HTTP)
-      request = Net::HTTP::Post.new(uri)
-      request.basic_auth(authn.session_client_id, authn.session_client_secret.to_s)
-      request.set_form_data("grant_type" => "refresh_token", "refresh_token" => refresh_token)
-
-      response = begin
-        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
-          http.request(request)
-        end
-      rescue StandardError
-        raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s)
+      response = NetAid::Http.session(timeout: TIMEOUT)
+        .plugin(:basic_auth)
+        .basic_auth(authn.session_client_id, authn.session_client_secret.to_s)
+        .post(uri.to_s, form: {"grant_type" => "refresh_token", "refresh_token" => refresh_token})
+      if response.is_a?(HTTPX::ErrorResponse)
+        raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s), cause: response.error
       end
+
       body = parse_body(response)
-      return body if response.is_a?(Net::HTTPSuccess) && body.is_a?(Hash)
+      return body if (200..299).cover?(response.status) && body.is_a?(Hash)
       raise Revoked, "himari refused the refresh" if body.is_a?(Hash) && body["error"] == "invalid_grant"
 
-      raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s, detail: "HTTP #{response.code}")
+      raise IssuerUnavailable.new("refresh_unavailable", url: uri.to_s, detail: "HTTP #{response.status}")
     end
 
-    #: (Net::HTTPResponse) -> untyped
+    #: (HTTPX::Response) -> untyped
     private def parse_body(response)
       JSON.parse(response.body.to_s)
     rescue JSON::ParserError

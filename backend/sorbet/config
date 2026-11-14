@@ -8,8 +8,9 @@
 --ignore=/vendor/
 --ignore=/public/
 --ignore=/gen/
-# RuboCop cops run inside RuboCop, whose RBIs are excluded.
+# RuboCop cops run inside RuboCop, whose RBIs are excluded, and so do their specs.
 --ignore=/rubocop/
+--ignore=/spec/rubocop/
 --parser=prism
 --enable-experimental-rbs-comments
 --enable-experimental-requires-ancestor

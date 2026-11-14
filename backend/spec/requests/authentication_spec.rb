@@ -90,7 +90,7 @@ RSpec.describe "Bearer authentication" do
     expect(error.code).to eq("unavailable")
     expect(problem_type_of(error)).to eq("unavailable")
     expect(completed_line.payload).to include(
-      authn_failure: "jwks_unavailable", authn_unavailable_cause: start_with("Net::OpenTimeout"),
+      authn_failure: "jwks_unavailable", authn_unavailable_cause: start_with("HTTPX::"),
     )
   end
 

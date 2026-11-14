@@ -1,8 +1,6 @@
 # typed: strict
 # frozen_string_literal: true
 
-require "net/http"
-
 module Authn
   # Signing keys of each trusted issuer, kept until a token names a key the cached set lacks.
   module JwksCache
@@ -67,12 +65,10 @@ module Authn
 
     #: (String) -> JWT::JWK::Set
     private_class_method def self.fetch(url)
-      uri = Must.be_a(URI(url), URI::HTTP)
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: TIMEOUT, read_timeout: TIMEOUT) do |http|
-        http.get(uri.request_uri, "Accept" => "application/json")
-      end
-      response.value
-      JWT::JWK::Set.new(JSON.parse(response.body))
+      Must.be_a(URI(url), URI::HTTP)
+      response = NetAid::Http.session(timeout: TIMEOUT).get(url, headers: {"accept" => "application/json"})
+      response.raise_for_status
+      JWT::JWK::Set.new(JSON.parse(response.to_s))
     end
 
     #: () -> Float

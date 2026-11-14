@@ -17,17 +17,23 @@ RSpec.describe Authn::JwksCache, type: :model do
     expect(described_class.find(url, "rsa-1")&.[](:kid)).to eq("rsa-1")
   end
 
+  it "fetches with the app's User-Agent" do
+    stub_jwks(url)
+    described_class.find(url, "rsa-1")
+    expect(a_request(:get, url).with(headers: {"User-Agent" => NetAid::Http::USER_AGENT})).to have_been_made
+  end
+
   it "raises IssuerUnavailable, keeping the cause, when the issuer answers an error" do
     stub_request(:get, url).to_return(status: 503, body: "")
 
     error = unavailable_from(url)
     expect(error).to have_attributes(reason: "jwks_unavailable", url:)
-    expect(error.cause).to be_a(Net::HTTPFatalError)
+    expect(error.cause).to be_a(HTTPX::HTTPError)
   end
 
   it "raises IssuerUnavailable when the issuer does not answer" do
     stub_request(:get, url).to_timeout
-    expect(unavailable_from(url).cause).to be_a(Net::OpenTimeout)
+    expect(unavailable_from(url).cause).to be_a(HTTPX::TimeoutError)
   end
 
   it "raises IssuerUnavailable when the JWKS does not parse" do
@@ -42,7 +48,7 @@ RSpec.describe Authn::JwksCache, type: :model do
     stub_request(:get, url).to_return(status: 503, body: "")
 
     unavailable_from(url)
-    expect(unavailable_from(url).cause).to be_a(Net::HTTPFatalError)
+    expect(unavailable_from(url).cause).to be_a(HTTPX::HTTPError)
     expect(a_request(:get, url)).to have_been_made.once
 
     stub_jwks(url)

@@ -71,6 +71,11 @@ RSpec/MultipleMemoizedHelpers:
 
 require:
   - ./rubocop/transaction_occ_awareness.rb
+  - ./rubocop/net_http.rb
+
+# Gems may use Net::HTTP; the app goes through NetAid::Http.
+NetAid/NetHttp:
+  Enabled: true
 
 Dsql/TransactionOccAwareness:
   Enabled: true

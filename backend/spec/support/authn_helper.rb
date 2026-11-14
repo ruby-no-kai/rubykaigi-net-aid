@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "webmock/rspec"
+require "httpx/adapters/webmock"
 
 # Mints bearer tokens signed by test keys, served from stubbed JWKS endpoints of each trusted
 # issuer.
