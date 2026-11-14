@@ -24,6 +24,7 @@ module Auth
       auth = request.env["omniauth.auth"] or raise ActionController::BadRequest, "no OmniAuth result"
       return_to = safe_return_to(session[:return_to])
       browser_session = browser_session_for(auth)
+      RequestLogContext.add_tags(**browser_session.actor.log_tags)
 
       reset_session
       browser_session.store(session)
@@ -36,8 +37,15 @@ module Auth
       render :failure, status: :service_unavailable
     end
 
+    # OmniAuth redirects here with the error it met, such as `invalid_credentials` or the class of
+    # an exception.
     #: () -> void
     def failure
+      error = params[:message]
+      RequestLogContext.add_fields(**{
+        authn_failure: "sign_in_failed",
+        authn_sign_in_error: (error if error.is_a?(String) && error.match?(/\A[\w:]{1,64}\z/))
+      }.compact)
       render :failure, status: :unauthorized
     end
 

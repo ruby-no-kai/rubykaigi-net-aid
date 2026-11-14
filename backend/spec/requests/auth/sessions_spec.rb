@@ -37,6 +37,30 @@ RSpec.describe "Browser sign-in" do
       expect(URI(response.location).path).to eq("/auth/failure")
     end
 
+    it "logs why OmniAuth failed" do
+      logger = SemanticLogger::Test::CaptureLogEvents.new
+      allow(Auth::SessionsController).to receive(:logger).and_return(logger)
+      post "/auth/himari"
+
+      get response.location
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(logger.events.find { it.message.start_with?("Completed") }.payload).to include(
+        authn_failure: "sign_in_failed", authn_sign_in_error: "ActionController::InvalidAuthenticityToken",
+      )
+    end
+
+    it "logs no sign-in error that is not a plain word" do
+      logger = SemanticLogger::Test::CaptureLogEvents.new
+      allow(Auth::SessionsController).to receive(:logger).and_return(logger)
+
+      get "/auth/failure", params: {message: "<script>"}
+
+      payload = logger.events.find { it.message.start_with?("Completed") }.payload
+      expect(payload).to include(authn_failure: "sign_in_failed")
+      expect(payload).not_to have_key(:authn_sign_in_error)
+    end
+
     it "redirects to himari with PKCE and offline access" do
       get "/auth/himari"
       token = response.body[/name="authenticity_token" value="([^"]+)"/, 1]
@@ -70,6 +94,16 @@ RSpec.describe "Browser sign-in" do
 
         expect(response).to redirect_to("https://www.example.com/")
       end
+    end
+
+    it "tags its Completed line with the Actor it signs in" do
+      logger = SemanticLogger::Test::CaptureLogEvents.new
+      allow(Auth::SessionsController).to receive(:logger).and_return(logger)
+
+      sign_in_as(sub: "github_1")
+
+      tags = logger.events.find { it.message.start_with?("Completed") }.named_tags
+      expect(tags).to include(actor_issuer: "himari", actor_subject: "github_1", credential_id: match(/\A\h{8}-/))
     end
 
     it "sets the session cookie with its security attributes" do

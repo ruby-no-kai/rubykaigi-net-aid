@@ -46,9 +46,7 @@ module Authenticatable
   #: (Actor) -> void
   private def authenticated_as(actor)
     Current.actor = actor
-    RequestLogContext.add_tags(
-      actor_issuer: actor.issuer, actor_subject: actor.subject, credential_id: actor.credential_id,
-    )
+    RequestLogContext.add_tags(**actor.log_tags)
   end
 
   #: () -> String

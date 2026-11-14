@@ -13,4 +13,8 @@ class Actor
   def self.truncate_user_agent(user_agent)
     user_agent.to_s.truncate(USER_AGENT_LIMIT, omission: "")
   end
+
+  # The named tags identifying the Actor on every log line of its request.
+  #: () -> Hash[Symbol, String]
+  def log_tags = {actor_issuer: issuer, actor_subject: subject, credential_id:}
 end

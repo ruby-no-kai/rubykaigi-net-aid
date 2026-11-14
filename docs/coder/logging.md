@@ -46,7 +46,7 @@ Tags identify the request and apply to every line written after they are set, ne
 |---|---|
 | `request_id` | `action_dispatch.request_id` |
 | `handler` | the authorisation action of the routed RPC, `netaid:<Method>`; absent for a method the service does not declare |
-| `actor_issuer`, `actor_subject`, `credential_id` | the authenticated Actor (`Authenticatable`); absent for an anonymous caller and on lines written before authentication |
+| `actor_issuer`, `actor_subject`, `credential_id` | the authenticated Actor (`Authenticatable`), or the Actor the himari callback signs in; absent for an anonymous caller and on lines written before authentication |
 | `episode` | the Episode slug of the Plan branch the request names (`Authorizable`); absent when it names none |
 
 ### Payload fields
@@ -60,11 +60,13 @@ Tags identify the request and apply to every line written after they are set, ne
 | `connect_code` | the Connect error code the controller rendered, problems included |
 | `error_class` | the exception a `rescue_from` handled, or the unhandled one |
 | `problem_type` | the problem's `type` without its URI prefix, such as `permission-denied` |
-| `authn_failure` | why the credentials were refused: `expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired` or `session_revoked` |
+| `authn_failure` | why the credentials were refused: `expired`, `bad_signature`, `wrong_audience`, `unknown_issuer`, `unknown_kid`, `id_token_as_bearer`, `session_expired`, `session_revoked` or `sign_in_failed`; or why they could not be checked: `jwks_unavailable`, `refresh_unavailable` |
 | `authn_issuer` | the unverified `iss` of a refused bearer token |
+| `authn_sign_in_error` | the error OmniAuth redirected to `/auth/failure` with, such as `invalid_credentials`; absent unless it is a plain identifier |
+| `authn_unavailable_cause` | the exception or HTTP status behind `jwks_unavailable` or `refresh_unavailable` |
 | `authz_denied_action` | the action the policy denied, such as `netaid:CreateSite` |
 
-Error fields are absent when the request did not fail. Authentication and authorisation failures answer 4xx, so their lines stay at info. A token never appears on the line, only the reason it was refused. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it has no `connect_code`.
+Error fields are absent when the request did not fail. Authentication and authorisation failures answer 4xx, so their lines stay at info. An unreachable issuer answers 503 and logs at error. A token never appears on the line, only the reason it was refused. An exception escaping the controller logs as status 500 with `error_class`; `ConnectExceptions` renders it after `Completed`, so it has no `connect_code`.
 
 ### Counters
 
