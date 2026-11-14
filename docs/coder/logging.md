@@ -83,7 +83,7 @@ Counters are payload fields counting the work a request did, present only when n
 
 ## Jobs
 
-A job's canonical line is rails_semantic_logger's `Performed` line. `RequestLogContext.apply` merges the context's counters into it, and tags added during the job apply to it as to any other line. `ApplicationJob` tags it with `actor_issuer`, `actor_subject` and `credential_id` of the Actor it runs as. The executor resets the context per job, so nothing leaks between jobs.
+A job's canonical line is rails_semantic_logger's `Performed` line. `RequestLogContext.apply` merges the context's counters into it, and tags added during the job apply to it as to any other line. `ActorJob`, included in `ApplicationJob`, tags it with `actor_issuer`, `actor_subject` and `credential_id` of the Actor it runs as. The executor resets the context per job, so nothing leaks between jobs.
 
 ## Adding to the canonical line
 

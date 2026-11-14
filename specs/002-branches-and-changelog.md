@@ -78,7 +78,7 @@ end
 
 - `mutation:` is the request's `MutationHeader` (004), or `nil` for server-originated writes (jobs, imports, fork copies), which journal no Mutation. A write with a `mutation` also takes `rpc:` (the full RPC name) and `payload:` (the request message) to journal, and raises `ArgumentError` without them.
 - `Changelog.write` opens its own transaction. It does not nest (`ArgumentError`), and called while a joinable transaction is already open it raises `Changelog::TransactionOpen` rather than join it, so a journalled rejection can never commit the caller's writes. A transactional test fixture's transaction is not joinable, so a write inside one runs in a savepoint.
-- The ChangeSet records `Current.actor`. A job started by a request carries the starting Actor, serialised into its arguments, and sets `Current.actor` from it. A job with no human starter records issuer `system` and the job class name as subject.
+- The ChangeSet records `Current.actor`. A job started by a request carries the starting Actor, serialised into its job data when it is enqueued, and sets `Current.actor` from it, for its `rescue_from`, `retry_on` and `discard_on` handlers too. A job performed inline runs as its caller. A job with no human starter records issuer `system` and the job class name as subject. Every job is enqueued only once the enclosing transaction commits.
 - `branches:` lists every branch the block may write. Saving a row whose `branch_id` is not declared raises `Changelog::UndeclaredBranch` (a bug, not a problem answer).
 - A written branch must be `STATE_READY` and not frozen, or the write raises a subclass of `Errors::BranchNotWritable` (`PROBLEM_TYPE_BRANCH_NOT_WRITABLE`, `branch-not-writable`, 412). A frozen branch raises `Errors::BranchFrozen`, which is journalled. A branch still being prepared raises `Errors::BranchNotReady`, which is not: the branch becomes writable, so a retry with the same `mutation_id` must run again.
 - A branch's `seq` is taken lazily, on the block's first write to it. A declared branch the block never writes gets no ChangeSet, its `head_seq` is not consumed, and its row is not locked, so declaring a branch costs nothing unless it is written.
@@ -349,7 +349,7 @@ Implementation complete.
 - [x] `Changelog::Cursor`
 - [x] `Errors::BranchNotWritable`, `Errors::ResyncRequired`, `PROBLEM_TYPE_BRANCH_NOT_WRITABLE` and `PROBLEM_TYPE_RESYNC_REQUIRED` (both 412)
 - [x] Map an escaping `ActiveRecord::SerializationFailure` to Connect `unavailable`
-- [x] Job Actor propagation (starting Actor serialised into job arguments, else `system`)
+- [x] Job Actor propagation (starting Actor serialised into the job data at enqueue, else `system`)
 - [x] `Changelog/BulkWrite` cop
 - [x] Canonical log line fields and counters (021); `occ_retries` incremented from `DsqlTransactionable#retryable_transaction`
 - [x] Specs listed under Tests
@@ -392,3 +392,6 @@ Implementation complete.
   - `Changelog/BulkWrite` flags `delete` with arguments on a constant receiver.
   - Expected Outcomes gain the two above on rejections and races.
   - Spec body brought in line with the code: `is_frozen`, the delete before-image in `changes.data`, `Any` storage, `base_cursors`, the write algorithm and signature, the cop list, the errors and the grants.
+- 2026-11-14: Review fixes.
+  - `ActorJob`, included in `ApplicationJob`, captures the starting Actor when the job is serialised at enqueue rather than when it is built, and also sets it around `rescue_from`, `retry_on` and `discard_on` handlers. A job performed inline runs as its caller.
+  - Every job, `ActiveJob::Base` included, is enqueued after the enclosing transaction commits (`config/initializers/active_job.rb`).
