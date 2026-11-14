@@ -6,6 +6,29 @@ option ruby_package = "Rk::NetAid";
 
 // The party calling the API.
 message Viewer {
-  // Whether the request carries a signed-in session.
-  bool signed_in = 1;
+  // The caller, set when the request carries a signed-in session or an accepted bearer token, and
+  // unset for an anonymous caller.
+  Actor actor = 1;
+  // The caller's roles, such as `viewer`, `operator`, `admin` or `exporter`. Empty when signed
+  // out, or when the caller holds no role and may call nothing beyond ViewerService.
+  repeated string roles = 2;
+}
+
+// The caller recorded by the changelog.
+message Actor {
+  // Who vouched for the caller: `himari` for a person, `github-actions` or `aws-sts` for a
+  // machine.
+  string issuer = 1;
+  // The caller's identifier at the issuer: a himari `sub` (`github_<uid>`), a GitHub Actions
+  // `sub` (`repo:<owner>/<repo>:ref:...`), or a role ARN.
+  string subject = 2;
+  // A name for history views: the person's GitHub login, `<repository> <workflow> #<run_number>`
+  // for a workflow run, or the role name for AWS.
+  string display_name = 3;
+  // The sign-in or token that authenticated the request: a UUID per browser sign-in,
+  // `<client_id>/<jti>` for a himari bearer token, `<run_id>/<run_attempt>` for GitHub Actions, or
+  // the token's `jti` for AWS.
+  string credential_id = 4;
+  // The request's User-Agent, truncated to 255 characters.
+  string user_agent = 5;
 }

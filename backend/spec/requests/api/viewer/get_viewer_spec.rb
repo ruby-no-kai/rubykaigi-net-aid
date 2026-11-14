@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe "ViewerService.GetViewer" do
   let(:rpc) { connect_method("ViewerService", "GetViewer") }
-  let(:expected) { Rk::NetAid::ViewerServiceGetViewerResponse.new(viewer: Rk::NetAid::Viewer.new(signed_in: false)) }
+  let(:expected) { Rk::NetAid::ViewerServiceGetViewerResponse.new(viewer: Rk::NetAid::Viewer.new) }
 
   it "answers a JSON POST" do
     expect(connect_call(rpc, Rk::NetAid::ViewerServiceGetViewerRequest.new)).to eq(expected)

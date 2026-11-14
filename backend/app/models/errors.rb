@@ -12,6 +12,10 @@ module Errors
   class ApiError < StandardError
     include Protobufable::Problem::Typeable
 
+    # Fields this occurrence adds to the canonical log line.
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {}
+
     #: () -> String
     def self.problem_type_enum = "rubykaigi.net_aid.ProblemType"
 
@@ -19,14 +23,74 @@ module Errors
     def self.problem_type_annotation = "rubykaigi.net_aid.problem_type"
   end
 
-  # The request carries no valid session.
+  # The request carries no credentials an action requires, or credentials that are refused.
   class Unauthenticated < ApiError
     problem_type :PROBLEM_TYPE_UNAUTHENTICATED
   end
 
-  # The session may not act on the resource the request names.
+  # An action other than GetViewer and RefreshSession was called without credentials.
+  class SignInRequired < Unauthenticated
+    #: String
+    attr_reader :action
+
+    #: (action: String) -> void
+    def initialize(action:)
+      @action = action
+      super(detail: "#{action} requires signing in.")
+    end
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authz_denied_action: action}
+  end
+
+  # The browser sign-in failed at the identity provider or in OmniAuth. `error` is what OmniAuth
+  # reports, such as `invalid_credentials` or an exception's class.
+  class SignInFailed < Unauthenticated
+    #: String?
+    attr_reader :error
+
+    #: (error: String?) -> void
+    def initialize(error:)
+      @error = error
+      super(detail: "Signing in failed.")
+    end
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authn_failure: :sign_in_failed, authn_sign_in_error: error}.compact
+  end
+
+  # The Authorization header is present but carries no bearer token.
+  class MalformedAuthorization < Unauthenticated; end
+
+  # RefreshSession was called by a request carrying no browser session.
+  class NoSessionToRefresh < Unauthenticated; end
+
+  # The session's himari access token has expired, and ViewerService.RefreshSession renews it.
+  class SessionExpired < ApiError
+    problem_type :PROBLEM_TYPE_SESSION_EXPIRED
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authn_failure: :session_expired}
+  end
+
+  # The caller may not perform the action the request names.
   class PermissionDenied < ApiError
     problem_type :PROBLEM_TYPE_PERMISSION_DENIED
+  end
+
+  # No role of the caller permits the RPC's action.
+  class ActionDenied < PermissionDenied
+    #: String
+    attr_reader :action
+
+    #: (action: String) -> void
+    def initialize(action:)
+      @action = action
+      super(detail: "The caller may not perform #{action}.")
+    end
+
+    #: () -> Hash[Symbol, untyped]
+    def log_fields = {authz_denied_action: action}
   end
 
   # The resource the request names does not exist.
@@ -108,5 +172,10 @@ module Errors
   # The server failed to answer the request.
   class Internal < ApiError
     problem_type :PROBLEM_TYPE_INTERNAL
+  end
+
+  # A service the server depends on could not be reached.
+  class Unavailable < ApiError
+    problem_type :PROBLEM_TYPE_UNAVAILABLE
   end
 end

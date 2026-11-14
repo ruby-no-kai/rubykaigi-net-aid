@@ -8,6 +8,7 @@ class RequestLogContext < ActiveSupport::CurrentAttributes
   JOB_PERFORM_EVENT = "perform.active_job" #: String
 
   attribute :tags, default: -> { {} }
+  attribute :fields, default: -> { {} }
   attribute :counters, default: -> { Hash.new(0) }
   attribute :rescued_exception
   attribute :connect_code
@@ -16,6 +17,12 @@ class RequestLogContext < ActiveSupport::CurrentAttributes
   #: (**untyped) -> void
   def self.add_tags(**new_tags)
     tags.merge!(new_tags)
+  end
+
+  # Fields describing the request's outcome, reported on its canonical line only.
+  #: (**untyped) -> void
+  def self.add_fields(**new_fields)
+    fields.merge!(new_fields)
   end
 
   #: (Symbol) -> void
@@ -33,9 +40,10 @@ class RequestLogContext < ActiveSupport::CurrentAttributes
     payload.merge!(log_payload) if payload.is_a?(Hash) && payload[:event_name] == JOB_PERFORM_EVENT
   end
 
-  # Counters are only ever stored once incremented, so none of them is zero.
-  #: () -> Hash[Symbol, Integer]
+  # Outcome fields and counters. Counters are only ever stored once incremented, so none of them is
+  # zero.
+  #: () -> Hash[Symbol, untyped]
   def self.log_payload
-    counters.to_h
+    fields.merge(counters)
   end
 end

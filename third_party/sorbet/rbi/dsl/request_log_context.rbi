@@ -22,6 +22,12 @@ class RequestLogContext
     def counters=(value); end
 
     sig { returns(T.untyped) }
+    def fields; end
+
+    sig { params(value: T.untyped).returns(T.untyped) }
+    def fields=(value); end
+
+    sig { returns(T.untyped) }
     def rendered_problem; end
 
     sig { params(value: T.untyped).returns(T.untyped) }
@@ -52,6 +58,12 @@ class RequestLogContext
 
     sig { params(value: T.untyped).returns(T.untyped) }
     def counters=(value); end
+
+    sig { returns(T.untyped) }
+    def fields; end
+
+    sig { params(value: T.untyped).returns(T.untyped) }
+    def fields=(value); end
 
     sig { returns(T.untyped) }
     def rendered_problem; end

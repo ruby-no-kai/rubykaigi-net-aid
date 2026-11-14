@@ -6,15 +6,27 @@
 
 
 class Rk::NetAid::Viewer < Google::Protobuf::AbstractMessage
-  sig { params(signed_in: T.nilable(T::Boolean)).void }
-  def initialize(signed_in: nil); end
+  sig { params(actor: T.nilable(Rk::NetAid::Actor), roles: T.nilable(T::Array[String])).void }
+  def initialize(actor: nil, roles: T.unsafe(nil)); end
+
+  sig { returns(T.nilable(Rk::NetAid::Actor)) }
+  def actor; end
+
+  sig { params(value: T.nilable(Rk::NetAid::Actor)).void }
+  def actor=(value); end
 
   sig { void }
-  def clear_signed_in; end
+  def clear_actor; end
 
-  sig { returns(T::Boolean) }
-  def signed_in; end
+  sig { void }
+  def clear_roles; end
 
-  sig { params(value: T::Boolean).void }
-  def signed_in=(value); end
+  sig { returns(Object) }
+  def has_actor?; end
+
+  sig { returns(Google::Protobuf::RepeatedField[String]) }
+  def roles; end
+
+  sig { params(value: Google::Protobuf::RepeatedField[String]).void }
+  def roles=(value); end
 end

@@ -6,9 +6,6 @@
 #
 # @requires_ancestor: ActionController::Metal
 module ActionLogPayloadable
-  # The length the Actor keeps of a user agent.
-  USER_AGENT_LIMIT = 255 #: Integer
-
   #: (Hash[Symbol, untyped]) -> void
   private def append_info_to_payload(payload)
     super
@@ -19,7 +16,7 @@ module ActionLogPayloadable
   private def request_log_payload
     {
       ip: request.remote_ip,
-      user_agent: request.user_agent&.truncate(USER_AGENT_LIMIT, omission: "")
+      user_agent: request.user_agent&.truncate(Actor::USER_AGENT_LIMIT, omission: "")
     }
   end
 
@@ -30,7 +27,8 @@ module ActionLogPayloadable
     {
       connect_code: RequestLogContext.connect_code,
       error_class: error&.class&.name,
-      problem_type: (problem_type_for(problem) if problem)
+      problem_type: (problem_type_for(problem) if problem),
+      **(problem.is_a?(Errors::ApiError) ? problem.log_fields : {})
     }.compact
   end
 

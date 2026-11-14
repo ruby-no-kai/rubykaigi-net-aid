@@ -10,6 +10,9 @@ module GeneratedPathHelpersModule
   include ::ActionDispatch::Routing::PolymorphicRoutes
 
   sig { params(args: T.untyped).returns(String) }
+  def failure_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
   def rails_health_check_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
@@ -23,4 +26,10 @@ module GeneratedPathHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def rails_info_routes_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def sign_in_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def sign_out_path(*args); end
 end

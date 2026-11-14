@@ -21,7 +21,7 @@ extend google.protobuf.EnumValueOptions {
 //
 // Over Connect, the status selects the error code: 401 is `unauthenticated`, 403
 // `permission_denied`, 404 `not_found`, 409 `aborted`, 412 `failed_precondition`, 422
-// `invalid_argument` and 500 `internal`. The HTTP response then carries the code's status, so a
+// `invalid_argument`, 500 `internal` and 503 `unavailable`. The HTTP response then carries the code's status, so a
 // 422 problem arrives as HTTP 400 while its document still reads 422.
 //
 // Values and identifiers are never renamed or reused.
@@ -69,5 +69,25 @@ enum ProblemType {
   PROBLEM_TYPE_INTERNAL = 7 [(problem_type) = {
     uri: "internal"
     http_status: 500
+  }];
+
+  // The session's sign-in has expired. Call ViewerService.RefreshSession once, then retry.
+  PROBLEM_TYPE_SESSION_EXPIRED = 8 [(problem_type) = {
+    uri: "session-expired"
+    http_status: 401
+  }];
+
+  // The identity provider refused to refresh the session. Sign in again, unless GetViewer finds
+  // the session renewed by another tab's refresh.
+  PROBLEM_TYPE_SESSION_REVOKED = 9 [(problem_type) = {
+    uri: "session-revoked"
+    http_status: 401
+  }];
+
+  // A service the server depends on, such as the identity provider, could not be reached. Retry
+  // later.
+  PROBLEM_TYPE_UNAVAILABLE = 10 [(problem_type) = {
+    uri: "unavailable"
+    http_status: 503
   }];
 }

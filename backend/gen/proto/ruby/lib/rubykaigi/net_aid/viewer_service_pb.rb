@@ -7,7 +7,7 @@ require 'google/protobuf'
 require 'rubykaigi/net_aid/viewer_pb'
 
 
-descriptor_data = "\n&rubykaigi/net_aid/viewer_service.proto\x12\x11rubykaigi.net_aid\x1a\x1erubykaigi/net_aid/viewer.proto\"\x1f\n\x1dViewerServiceGetViewerRequest\"S\n\x1eViewerServiceGetViewerResponse\x12\x31\n\x06viewer\x18\x01 \x01(\x0b\x32\x19.rubykaigi.net_aid.ViewerR\x06viewer2\x86\x01\n\rViewerService\x12u\n\tGetViewer\x12\x30.rubykaigi.net_aid.ViewerServiceGetViewerRequest\x1a\x31.rubykaigi.net_aid.ViewerServiceGetViewerResponse\"\x03\x90\x02\x01\x42\r\xea\x02\nRk::NetAidb\x06proto3"
+descriptor_data = "\n&rubykaigi/net_aid/viewer_service.proto\x12\x11rubykaigi.net_aid\x1a\x1erubykaigi/net_aid/viewer.proto\"\x1f\n\x1dViewerServiceGetViewerRequest\"S\n\x1eViewerServiceGetViewerResponse\x12\x31\n\x06viewer\x18\x01 \x01(\x0b\x32\x19.rubykaigi.net_aid.ViewerR\x06viewer\"$\n\"ViewerServiceRefreshSessionRequest\"X\n#ViewerServiceRefreshSessionResponse\x12\x31\n\x06viewer\x18\x01 \x01(\x0b\x32\x19.rubykaigi.net_aid.ViewerR\x06viewer2\x87\x02\n\rViewerService\x12u\n\tGetViewer\x12\x30.rubykaigi.net_aid.ViewerServiceGetViewerRequest\x1a\x31.rubykaigi.net_aid.ViewerServiceGetViewerResponse\"\x03\x90\x02\x01\x12\x7f\n\x0eRefreshSession\x12\x35.rubykaigi.net_aid.ViewerServiceRefreshSessionRequest\x1a\x36.rubykaigi.net_aid.ViewerServiceRefreshSessionResponseB\r\xea\x02\nRk::NetAidb\x06proto3"
 
 pool = ::Google::Protobuf::DescriptorPool.generated_pool
 pool.add_serialized_file(descriptor_data)
@@ -16,5 +16,7 @@ module Rk
   module NetAid
     ViewerServiceGetViewerRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("rubykaigi.net_aid.ViewerServiceGetViewerRequest").msgclass
     ViewerServiceGetViewerResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("rubykaigi.net_aid.ViewerServiceGetViewerResponse").msgclass
+    ViewerServiceRefreshSessionRequest = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("rubykaigi.net_aid.ViewerServiceRefreshSessionRequest").msgclass
+    ViewerServiceRefreshSessionResponse = ::Google::Protobuf::DescriptorPool.generated_pool.lookup("rubykaigi.net_aid.ViewerServiceRefreshSessionResponse").msgclass
   end
 end
